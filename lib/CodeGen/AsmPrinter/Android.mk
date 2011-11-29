@@ -35,7 +35,16 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES :=	\
 	AsmPrinter.cpp	\
 	AsmPrinterDwarf.cpp	\
-	AsmPrinterInlineAsm.cpp
+	AsmPrinterInlineAsm.cpp \
+	ARMException.cpp	\
+	DIE.cpp	\
+	DwarfAccelTable.cpp \
+	DwarfCFIException.cpp \
+	DwarfCompileUnit.cpp \
+	DwarfDebug.cpp	\
+	DwarfException.cpp	\
+	OcamlGCPrinter.cpp \
+	Win64Exception.cpp
 
 LOCAL_MODULE:= libLLVMAsmPrinter
 
