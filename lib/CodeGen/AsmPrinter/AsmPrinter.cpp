@@ -13,10 +13,8 @@
 
 #define DEBUG_TYPE "asm-printer"
 #include "llvm/CodeGen/AsmPrinter.h"
-#ifndef ANDROID_TARGET_BUILD
-#   include "DwarfDebug.h"
-#   include "DwarfException.h"
-#endif // ANDROID_TARGET_BUILD
+#include "DwarfDebug.h"
+#include "DwarfException.h"
 #include "llvm/Module.h"
 #include "llvm/CodeGen/GCMetadataPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -35,7 +33,6 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Target/Mangler.h"
-#include "llvm/Target/TargetAsmInfo.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Target/TargetInstrInfo.h"
 #include "llvm/Target/TargetLowering.h"
@@ -47,8 +44,8 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Timer.h"
-#include <ctype.h>
 using namespace llvm;
 
 static const char *DWARFGroupName = "DWARF Emission";
@@ -189,7 +186,6 @@ bool AsmPrinter::doInitialization(Module &M) {
     OutStreamer.AddBlankLine();
   }
 
-#ifndef ANDROID_TARGET_BUILD
   if (MAI->doesSupportDebugInformation())
     DD = new DwarfDebug(this, &M);
 
@@ -207,9 +203,6 @@ bool AsmPrinter::doInitialization(Module &M) {
     DE = new Win64Exception(this);
     return false;
   }
-#else
-  return false;
-#endif // ANDROID_TARGET_BUILD
 
   llvm_unreachable("Unknown exception type.");
 }
@@ -297,10 +290,10 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
   // Handle common and BSS local symbols (.lcomm).
   if (GVKind.isCommon() || GVKind.isBSSLocal()) {
     if (Size == 0) Size = 1;   // .comm Foo, 0 is undefined, avoid it.
+    unsigned Align = 1 << AlignLog;
 
     // Handle common symbols.
     if (GVKind.isCommon()) {
-      unsigned Align = 1 << AlignLog;
       if (!getObjFileLowering().getCommDirectiveSupportsAlignment())
         Align = 0;
 
@@ -314,17 +307,17 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
       const MCSection *TheSection =
         getObjFileLowering().SectionForGlobal(GV, GVKind, Mang, TM);
       // .zerofill __DATA, __bss, _foo, 400, 5
-      OutStreamer.EmitZerofill(TheSection, GVSym, Size, 1 << AlignLog);
+      OutStreamer.EmitZerofill(TheSection, GVSym, Size, Align);
       return;
     }
 
-    if (MAI->hasLCOMMDirective()) {
+    if (MAI->getLCOMMDirectiveType() != LCOMM::None &&
+        (MAI->getLCOMMDirectiveType() != LCOMM::NoAlignment || Align == 1)) {
       // .lcomm _foo, 42
-      OutStreamer.EmitLocalCommonSymbol(GVSym, Size);
+      OutStreamer.EmitLocalCommonSymbol(GVSym, Size, Align);
       return;
     }
 
-    unsigned Align = 1 << AlignLog;
     if (!getObjFileLowering().getCommDirectiveSupportsAlignment())
       Align = 0;
 
@@ -466,7 +459,6 @@ void AsmPrinter::EmitFunctionHeader() {
   }
 
   // Emit pre-function debug and/or EH information.
-#ifndef ANDROID_TARGET_BUILD
   if (DE) {
     NamedRegionTimer T(EHTimerName, DWARFGroupName, TimePassesIsEnabled);
     DE->BeginFunction(MF);
@@ -475,7 +467,6 @@ void AsmPrinter::EmitFunctionHeader() {
     NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
     DD->beginFunction(MF);
   }
-#endif // ANDROID_TARGET_BUILD
 }
 
 /// EmitFunctionEntryLabel - Emit the label that is the entrypoint for the
@@ -483,8 +474,10 @@ void AsmPrinter::EmitFunctionHeader() {
 void AsmPrinter::EmitFunctionEntryLabel() {
   // The function label could have already been emitted if two symbols end up
   // conflicting due to asm renaming.  Detect this and emit an error.
-  if (CurrentFnSym->isUndefined())
+  if (CurrentFnSym->isUndefined()) {
+    OutStreamer.ForceCodeRegion();
     return OutStreamer.EmitLabel(CurrentFnSym);
+  }
 
   report_fatal_error("'" + Twine(CurrentFnSym->getName()) +
                      "' label emitted multiple times to assembly file");
@@ -620,6 +613,10 @@ bool AsmPrinter::needsSEHMoves() {
     MF->getFunction()->needsUnwindTableEntry();
 }
 
+bool AsmPrinter::needsRelocationsForDwarfStringPool() const {
+  return MAI->doesDwarfUseRelocationsForStringPool();
+}
+
 void AsmPrinter::emitPrologLabel(const MachineInstr &MI) {
   MCSymbol *Label = MI.getOperand(0).getMCSymbol();
 
@@ -669,16 +666,14 @@ void AsmPrinter::EmitFunctionBody() {
       if (!II->isLabel() && !II->isImplicitDef() && !II->isKill() &&
           !II->isDebugValue()) {
         HasAnyRealCode = true;
-      
         ++EmittedInsts;
       }
-#ifndef ANDROID_TARGET_BUILD
+
       if (ShouldPrintDebugScopes) {
         NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
         DD->beginInstruction(II);
       }
-#endif // ANDROID_TARGET_BUILD
-      
+
       if (isVerbose())
         EmitComments(*II, OutStreamer.GetCommentOS());
 
@@ -713,13 +708,11 @@ void AsmPrinter::EmitFunctionBody() {
         EmitInstruction(II);
         break;
       }
-      
-#ifndef ANDROID_TARGET_BUILD
+
       if (ShouldPrintDebugScopes) {
         NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
         DD->endInstruction(II);
       }
-#endif // ANDROID_TARGET_BUILD
     }
   }
 
@@ -743,6 +736,18 @@ void AsmPrinter::EmitFunctionBody() {
       OutStreamer.EmitRawText(StringRef("\tnop\n"));
   }
 
+  const Function *F = MF->getFunction();
+  for (Function::const_iterator i = F->begin(), e = F->end(); i != e; ++i) {
+    const BasicBlock *BB = i;
+    if (!BB->hasAddressTaken())
+      continue;
+    MCSymbol *Sym = GetBlockAddressSymbol(BB);
+    if (Sym->isDefined())
+      continue;
+    OutStreamer.AddComment("Address of block that was removed by CodeGen");
+    OutStreamer.EmitLabel(Sym);
+  }
+
   // Emit target-specific gunk after the function body.
   EmitFunctionBodyEnd();
 
@@ -762,7 +767,6 @@ void AsmPrinter::EmitFunctionBody() {
   }
 
   // Emit post-function debug information.
-#ifndef ANDROID_TARGET_BUILD
   if (DD) {
     NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
     DD->endFunction(MF);
@@ -771,7 +775,6 @@ void AsmPrinter::EmitFunctionBody() {
     NamedRegionTimer T(EHTimerName, DWARFGroupName, TimePassesIsEnabled);
     DE->EndFunction();
   }
-#endif // ANDROID_TARGET_BUILD
   MMI->EndFunction();
 
   // Print out jump tables referenced by the function.
@@ -855,7 +858,6 @@ bool AsmPrinter::doFinalization(Module &M) {
   }
 
   // Finalize debug and EH information.
-#ifndef ANDROID_TARGET_BUILD
   if (DE) {
     {
       NamedRegionTimer T(EHTimerName, DWARFGroupName, TimePassesIsEnabled);
@@ -870,8 +872,7 @@ bool AsmPrinter::doFinalization(Module &M) {
     }
     delete DD; DD = 0;
   }
-#endif // ANDROID_TARGET_BUILD
-  
+
   // If the target wants to know about weak references, print them all.
   if (MAI->getWeakRefDirective()) {
     // FIXME: This is not lazy, it would be nice to only print weak references
@@ -898,7 +899,7 @@ bool AsmPrinter::doFinalization(Module &M) {
          I != E; ++I) {
       MCSymbol *Name = Mang->getSymbol(I);
 
-      const GlobalValue *GV = cast<GlobalValue>(I->getAliasedGlobal());
+      const GlobalValue *GV = I->getAliasedGlobal();
       MCSymbol *Target = Mang->getSymbol(GV);
 
       if (I->hasExternalLinkage() || !MAI->getWeakRefDirective())
@@ -1075,6 +1076,15 @@ void AsmPrinter::EmitJumpTableInfo() {
 
   EmitAlignment(Log2_32(MJTI->getEntryAlignment(*TM.getTargetData())));
 
+  // If we know the form of the jump table, go ahead and tag it as such.
+  if (!JTInDiffSection) {
+    if (MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32) {
+      OutStreamer.EmitJumpTable32Region();
+    } else {
+      OutStreamer.EmitDataRegion();
+    }
+  }
+
   for (unsigned JTI = 0, e = JT.size(); JTI != e; ++JTI) {
     const std::vector<MachineBasicBlock*> &JTBBs = JT[JTI].MBBs;
 
@@ -1246,22 +1256,53 @@ void AsmPrinter::EmitLLVMUsedList(const Constant *List) {
   }
 }
 
-/// EmitXXStructorList - Emit the ctor or dtor list.  This just prints out the
-/// function pointers, ignoring the init priority.
+typedef std::pair<int, Constant*> Structor;
+
+static bool priority_order(const Structor& lhs, const Structor& rhs) {
+  return lhs.first < rhs.first;
+}
+
+/// EmitXXStructorList - Emit the ctor or dtor list taking into account the init
+/// priority.
 void AsmPrinter::EmitXXStructorList(const Constant *List) {
   // Should be an array of '{ int, void ()* }' structs.  The first value is the
-  // init priority, which we ignore.
+  // init priority.
   if (!isa<ConstantArray>(List)) return;
-  const ConstantArray *InitList = cast<ConstantArray>(List);
-  for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i)
-    if (ConstantStruct *CS = dyn_cast<ConstantStruct>(InitList->getOperand(i))){
-      if (CS->getNumOperands() != 2) return;  // Not array of 2-element structs.
 
-      if (CS->getOperand(1)->isNullValue())
-        return;  // Found a null terminator, exit printing.
-      // Emit the function pointer.
-      EmitGlobalConstant(CS->getOperand(1));
-    }
+  // Sanity check the structors list.
+  const ConstantArray *InitList = dyn_cast<ConstantArray>(List);
+  if (!InitList) return; // Not an array!
+  StructType *ETy = dyn_cast<StructType>(InitList->getType()->getElementType());
+  if (!ETy || ETy->getNumElements() != 2) return; // Not an array of pairs!
+  if (!isa<IntegerType>(ETy->getTypeAtIndex(0U)) ||
+      !isa<PointerType>(ETy->getTypeAtIndex(1U))) return; // Not (int, ptr).
+
+  // Gather the structors in a form that's convenient for sorting by priority.
+  SmallVector<Structor, 8> Structors;
+  for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i) {
+    ConstantStruct *CS = dyn_cast<ConstantStruct>(InitList->getOperand(i));
+    if (!CS) continue; // Malformed.
+    if (CS->getOperand(1)->isNullValue())
+      break;  // Found a null terminator, skip the rest.
+    ConstantInt *Priority = dyn_cast<ConstantInt>(CS->getOperand(0));
+    if (!Priority) continue; // Malformed.
+    Structors.push_back(std::make_pair(Priority->getLimitedValue(65535),
+                                       CS->getOperand(1)));
+  }
+
+  // Emit the function pointers in reverse priority order.
+  switch (MAI->getStructorOutputOrder()) {
+  case Structors::None:
+    break;
+  case Structors::PriorityOrder:
+    std::sort(Structors.begin(), Structors.end(), priority_order);
+    break;
+  case Structors::ReversePriorityOrder:
+    std::sort(Structors.rbegin(), Structors.rend(), priority_order);
+    break;
+  }
+  for (unsigned i = 0, e = Structors.size(); i != e; ++i)
+    EmitGlobalConstant(Structors[i].second);
 }
 
 //===--------------------------------------------------------------------===//
@@ -1515,12 +1556,67 @@ static const MCExpr *LowerConstant(const Constant *CV, AsmPrinter &AP) {
 static void EmitGlobalConstantImpl(const Constant *C, unsigned AddrSpace,
                                    AsmPrinter &AP);
 
+/// isRepeatedByteSequence - Determine whether the given value is
+/// composed of a repeated sequence of identical bytes and return the
+/// byte value.  If it is not a repeated sequence, return -1.
+static int isRepeatedByteSequence(const Value *V, TargetMachine &TM) {
+
+  if (const ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
+    if (CI->getBitWidth() > 64) return -1;
+
+    uint64_t Size = TM.getTargetData()->getTypeAllocSize(V->getType());
+    uint64_t Value = CI->getZExtValue();
+
+    // Make sure the constant is at least 8 bits long and has a power
+    // of 2 bit width.  This guarantees the constant bit width is
+    // always a multiple of 8 bits, avoiding issues with padding out
+    // to Size and other such corner cases.
+    if (CI->getBitWidth() < 8 || !isPowerOf2_64(CI->getBitWidth())) return -1;
+
+    uint8_t Byte = static_cast<uint8_t>(Value);
+
+    for (unsigned i = 1; i < Size; ++i) {
+      Value >>= 8;
+      if (static_cast<uint8_t>(Value) != Byte) return -1;
+    }
+    return Byte;
+  }
+  if (const ConstantArray *CA = dyn_cast<ConstantArray>(V)) {
+    // Make sure all array elements are sequences of the same repeated
+    // byte.
+    if (CA->getNumOperands() == 0) return -1;
+
+    int Byte = isRepeatedByteSequence(CA->getOperand(0), TM);
+    if (Byte == -1) return -1;
+
+    for (unsigned i = 1, e = CA->getNumOperands(); i != e; ++i) {
+      int ThisByte = isRepeatedByteSequence(CA->getOperand(i), TM);
+      if (ThisByte == -1) return -1;
+      if (Byte != ThisByte) return -1;
+    }
+    return Byte;
+  }
+
+  return -1;
+}
+
 static void EmitGlobalConstantArray(const ConstantArray *CA, unsigned AddrSpace,
                                     AsmPrinter &AP) {
   if (AddrSpace != 0 || !CA->isString()) {
-    // Not a string.  Print the values in successive locations
-    for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i)
-      EmitGlobalConstantImpl(CA->getOperand(i), AddrSpace, AP);
+    // Not a string.  Print the values in successive locations.
+
+    // See if we can aggregate some values.  Make sure it can be
+    // represented as a series of bytes of the constant value.
+    int Value = isRepeatedByteSequence(CA, AP.TM);
+
+    if (Value != -1) {
+      uint64_t Bytes = AP.TM.getTargetData()->getTypeAllocSize(CA->getType());
+      AP.OutStreamer.EmitFill(Bytes, Value, AddrSpace);
+    }
+    else {
+      for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i)
+        EmitGlobalConstantImpl(CA->getOperand(i), AddrSpace, AP);
+    }
     return;
   }
 
@@ -1674,8 +1770,10 @@ static void EmitGlobalConstantImpl(const Constant *CV, unsigned AddrSpace,
     case 2:
     case 4:
     case 8:
+#define	PRIx64	"llx"
       if (AP.isVerbose())
-        AP.OutStreamer.GetCommentOS() << format("0x%llx\n", CI->getZExtValue());
+        AP.OutStreamer.GetCommentOS() << format("0x%" PRIx64 "\n",
+                                                CI->getZExtValue());
       AP.OutStreamer.EmitIntValue(CI->getZExtValue(), Size, AddrSpace);
       return;
     default:
@@ -2012,4 +2110,3 @@ GCMetadataPrinter *AsmPrinter::GetOrCreateGCPrinter(GCStrategy *S) {
   report_fatal_error("no GCMetadataPrinter registered for GC: " + Twine(Name));
   return 0;
 }
-

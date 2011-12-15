@@ -39,7 +39,9 @@ class SPUTargetMachine : public LLVMTargetMachine {
   InstrItineraryData  InstrItins;
 public:
   SPUTargetMachine(const Target &T, StringRef TT,
-                   StringRef CPU, StringRef FS, Reloc::Model RM);
+                   StringRef CPU, StringRef FS,
+                   Reloc::Model RM, CodeModel::Model CM,
+                   CodeGenOpt::Level OL);
 
   /// Return the subtarget implementation object
   virtual const SPUSubtarget     *getSubtargetImpl() const {
@@ -80,9 +82,8 @@ public:
   }
   
   // Pass Pipeline Configuration
-  virtual bool addInstSelector(PassManagerBase &PM,
-                               CodeGenOpt::Level OptLevel);
-  virtual bool addPreEmitPass(PassManagerBase &, CodeGenOpt::Level);	
+  virtual bool addInstSelector(PassManagerBase &PM);
+  virtual bool addPreEmitPass(PassManagerBase &);	
 };
 
 } // end namespace llvm

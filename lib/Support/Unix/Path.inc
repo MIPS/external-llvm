@@ -235,11 +235,6 @@ Path::GetBitcodeLibraryPaths(std::vector<sys::Path>& Paths) {
 }
 
 Path
-Path::GetLLVMDefaultConfigDir() {
-  return Path("/etc/llvm/");
-}
-
-Path
 Path::GetUserHomeDirectory() {
   const char* home = getenv("HOME");
   Path result;
@@ -252,8 +247,8 @@ Path::GetUserHomeDirectory() {
 Path
 Path::GetCurrentDirectory() {
   char pathname[MAXPATHLEN];
-  if (!getcwd(pathname,MAXPATHLEN)) {
-    assert (false && "Could not query current working directory.");
+  if (!getcwd(pathname, MAXPATHLEN)) {
+    assert(false && "Could not query current working directory.");
     return Path();
   }
 

@@ -1,5 +1,5 @@
-; RUN: llc  < %s -march=mipsel -mcpu=4ke | FileCheck %s -check-prefix=CHECK-EL
-; RUN: llc  < %s -march=mips   -mcpu=4ke | FileCheck %s -check-prefix=CHECK-EB
+; RUN: llc  < %s -march=mipsel | FileCheck %s -check-prefix=CHECK-EL
+; RUN: llc  < %s -march=mips   | FileCheck %s -check-prefix=CHECK-EB
 
 @g1 = global double 0.000000e+00, align 8
 @_ZTId = external constant i8*
@@ -10,15 +10,11 @@ entry:
 ; CHECK-EL:  .cfi_def_cfa_offset
 ; CHECK-EL:  sdc1 $f20
 ; CHECK-EL:  sw  $ra
-; CHECK-EL:  sw  $17
-; CHECK-EL:  sw  $16
 ; CHECK-EL:  .cfi_offset 52, -8
 ; CHECK-EL:  .cfi_offset 53, -4
 ; CHECK-EB:  .cfi_offset 53, -8
 ; CHECK-EB:  .cfi_offset 52, -4
 ; CHECK-EL:  .cfi_offset 31, -12
-; CHECK-EL:  .cfi_offset 17, -16
-; CHECK-EL:  .cfi_offset 16, -20
 ; CHECK-EL:  .cprestore 
 
   %exception = tail call i8* @__cxa_allocate_exception(i32 8) nounwind
@@ -32,10 +28,12 @@ lpad:                                             ; preds = %entry
 ; CHECK-EL:  lw  $gp
 ; CHECK-EL:  beq $5
 
-  %exn = tail call i8* @llvm.eh.exception() nounwind
-  %eh.selector = tail call i32 (i8*, i8*, ...)* @llvm.eh.selector(i8* %exn, i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*), i8* bitcast (i8** @_ZTId to i8*)) nounwind
+  %exn.val = landingpad { i8*, i32 } personality i32 (...)* @__gxx_personality_v0
+           catch i8* bitcast (i8** @_ZTId to i8*)
+  %exn = extractvalue { i8*, i32 } %exn.val, 0
+  %sel = extractvalue { i8*, i32 } %exn.val, 1
   %1 = tail call i32 @llvm.eh.typeid.for(i8* bitcast (i8** @_ZTId to i8*)) nounwind
-  %2 = icmp eq i32 %eh.selector, %1
+  %2 = icmp eq i32 %sel, %1
   br i1 %2, label %catch, label %eh.resume
 
 catch:                                            ; preds = %lpad
@@ -48,8 +46,7 @@ catch:                                            ; preds = %lpad
   ret void
 
 eh.resume:                                        ; preds = %lpad
-  tail call void @llvm.eh.resume(i8* %exn, i32 %eh.selector) noreturn
-  unreachable
+  resume { i8*, i32 } %exn.val
 
 unreachable:                                      ; preds = %entry
   unreachable

@@ -40,7 +40,9 @@ private:
 
 public:
   ARMBaseTargetMachine(const Target &T, StringRef TT,
-                       StringRef CPU, StringRef FS, Reloc::Model RM);
+                       StringRef CPU, StringRef FS,
+                       Reloc::Model RM, CodeModel::Model CM,
+                       CodeGenOpt::Level OL);
 
   virtual       ARMJITInfo       *getJITInfo()         { return &JITInfo; }
   virtual const ARMSubtarget  *getSubtargetImpl() const { return &Subtarget; }
@@ -49,13 +51,12 @@ public:
   }
 
   // Pass Pipeline Configuration
-  virtual bool addPreISel(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addInstSelector(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addPreRegAlloc(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addPreSched2(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addPreEmitPass(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addCodeEmitter(PassManagerBase &PM, CodeGenOpt::Level OptLevel,
-                              JITCodeEmitter &MCE);
+  virtual bool addPreISel(PassManagerBase &PM);
+  virtual bool addInstSelector(PassManagerBase &PM);
+  virtual bool addPreRegAlloc(PassManagerBase &PM);
+  virtual bool addPreSched2(PassManagerBase &PM);
+  virtual bool addPreEmitPass(PassManagerBase &PM);
+  virtual bool addCodeEmitter(PassManagerBase &PM, JITCodeEmitter &MCE);
 };
 
 /// ARMTargetMachine - ARM target machine.
@@ -69,7 +70,9 @@ class ARMTargetMachine : public ARMBaseTargetMachine {
   ARMFrameLowering    FrameLowering;
  public:
   ARMTargetMachine(const Target &T, StringRef TT,
-                   StringRef CPU, StringRef FS, Reloc::Model RM);
+                   StringRef CPU, StringRef FS,
+                   Reloc::Model RM, CodeModel::Model CM,
+                   CodeGenOpt::Level OL);
 
   virtual const ARMRegisterInfo  *getRegisterInfo() const {
     return &InstrInfo.getRegisterInfo();
@@ -108,7 +111,9 @@ class ThumbTargetMachine : public ARMBaseTargetMachine {
   OwningPtr<ARMFrameLowering> FrameLowering;
 public:
   ThumbTargetMachine(const Target &T, StringRef TT,
-                     StringRef CPU, StringRef FS, Reloc::Model RM);
+                     StringRef CPU, StringRef FS,
+                     Reloc::Model RM, CodeModel::Model CM,
+                     CodeGenOpt::Level OL);
 
   /// returns either Thumb1RegisterInfo or Thumb2RegisterInfo
   virtual const ARMBaseRegisterInfo *getRegisterInfo() const {

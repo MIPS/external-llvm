@@ -2,7 +2,6 @@ LOCAL_PATH := $(call my-dir)
 
 arm_codegen_TBLGEN_TABLES :=	\
 	ARMGenAsmWriter.inc	\
-	ARMGenMCCodeEmitter.inc \
 	ARMGenMCPseudoLowering.inc \
 	ARMGenRegisterInfo.inc	\
 	ARMGenInstrInfo.inc	\
@@ -13,7 +12,6 @@ arm_codegen_TBLGEN_TABLES :=	\
 	ARMGenCallingConv.inc
 
 arm_codegen_SRC_FILES :=   \
-	ARMAsmBackend.cpp \
 	ARMAsmPrinter.cpp \
 	ARMBaseInstrInfo.cpp    \
 	ARMBaseRegisterInfo.cpp \
@@ -24,16 +22,12 @@ arm_codegen_SRC_FILES :=   \
 	ARMExpandPseudoInsts.cpp    \
 	ARMFastISel.cpp	\
 	ARMFrameLowering.cpp \
-	ARMGlobalMerge.cpp  \
 	ARMHazardRecognizer.cpp \
 	ARMISelDAGToDAG.cpp \
 	ARMISelLowering.cpp \
 	ARMInstrInfo.cpp    \
 	ARMJITInfo.cpp  \
 	ARMLoadStoreOptimizer.cpp   \
-	ARMMachObjectWriter.cpp \
-	ARMMCCodeEmitter.cpp\
-	ARMMCExpr.cpp	\
 	ARMMCInstLower.cpp  \
 	ARMRegisterInfo.cpp \
 	ARMSelectionDAGInfo.cpp	\
@@ -42,7 +36,6 @@ arm_codegen_SRC_FILES :=   \
 	ARMTargetObjectFile.cpp \
 	InstPrinter/ARMInstPrinter.cpp \
 	MLxExpansionPass.cpp \
-	NEONMoveFix.cpp \
 	Thumb1FrameLowering.cpp \
 	Thumb1InstrInfo.cpp \
 	Thumb1RegisterInfo.cpp  \

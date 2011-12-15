@@ -11,7 +11,6 @@
 
 #include "Splitter.h"
 
-#include "RegisterCoalescer.h"
 #include "llvm/Module.h"
 #include "llvm/CodeGen/CalcSpillWeights.h"
 #include "llvm/CodeGen/LiveIntervalAnalysis.h"
@@ -20,6 +19,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -141,7 +141,7 @@ namespace llvm {
 
       ls.lis->InsertMachineInstrInMaps(copy);
 
-      SlotIndex copyDefIdx = ls.lis->getInstructionIndex(copy).getDefIndex();
+      SlotIndex copyDefIdx = ls.lis->getInstructionIndex(copy).getRegSlot();
 
       VNInfo *newVal = getNewVNI(preHeaderRange->valno);
       newVal->def = copyDefIdx;
@@ -175,7 +175,7 @@ namespace llvm {
 
         ls.lis->InsertMachineInstrInMaps(copy);
 
-        SlotIndex copyDefIdx = ls.lis->getInstructionIndex(copy).getDefIndex();
+        SlotIndex copyDefIdx = ls.lis->getInstructionIndex(copy).getRegSlot();
         
         // Blow away output range definition.
         outRange->valno->def = ls.lis->getInvalidIndex();
@@ -216,13 +216,13 @@ namespace llvm {
         SlotIndex instrIdx = ls.lis->getInstructionIndex(&instr);
         if (instr.modifiesRegister(li.reg, 0)) {
           LiveRange *defRange =
-            li.getLiveRangeContaining(instrIdx.getDefIndex());
+            li.getLiveRangeContaining(instrIdx.getRegSlot());
           if (defRange != 0) // May have caught this already.
             copyRange(*defRange);
         }
         if (instr.readsRegister(li.reg, 0)) {
           LiveRange *useRange =
-            li.getLiveRangeContaining(instrIdx.getUseIndex());
+            li.getLiveRangeContaining(instrIdx.getRegSlot(true));
           if (useRange != 0) { // May have caught this already.
             copyRange(*useRange);
           }
@@ -262,7 +262,7 @@ namespace llvm {
     au.addPreserved<MachineDominatorTree>();
     au.addRequired<MachineLoopInfo>();
     au.addPreserved<MachineLoopInfo>();
-    au.addPreserved<RegisterCoalescer>();
+    au.addPreservedID(RegisterCoalescerPassID);
     au.addPreserved<CalculateSpillWeights>();
     au.addPreserved<LiveStacks>();
     au.addRequired<SlotIndexes>();

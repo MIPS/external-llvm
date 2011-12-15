@@ -9,6 +9,7 @@ transforms_scalar_SRC_FILES := \
 	DCE.cpp \
 	DeadStoreElimination.cpp    \
 	EarlyCSE.cpp \
+	GlobalMerge.cpp \
 	GVN.cpp \
 	IndVarSimplify.cpp  \
 	JumpThreading.cpp   \
@@ -31,7 +32,6 @@ transforms_scalar_SRC_FILES := \
 	SimplifyCFGPass.cpp \
 	SimplifyLibCalls.cpp    \
 	Sink.cpp	\
-	TailDuplication.cpp \
 	TailRecursionElimination.cpp
 
 # For the host

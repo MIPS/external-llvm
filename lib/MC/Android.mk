@@ -3,11 +3,13 @@ LOCAL_PATH:= $(call my-dir)
 mc_SRC_FILES := \
   ELFObjectWriter.cpp \
   MachObjectWriter.cpp \
+  MCAsmBackend.cpp \
   MCAsmInfo.cpp \
   MCAsmInfoCOFF.cpp \
   MCAsmInfoDarwin.cpp \
   MCAsmStreamer.cpp \
   MCAssembler.cpp \
+  MCAtom.cpp \
   MCCodeEmitter.cpp \
   MCCodeGenInfo.cpp \
   MCContext.cpp \
@@ -18,15 +20,18 @@ mc_SRC_FILES := \
   MCELFStreamer.cpp \
   MCExpr.cpp \
   MCInst.cpp \
+  MCInstrAnalysis.cpp \
   MCInstPrinter.cpp \
   MCLabel.cpp \
   MCLoggingStreamer.cpp	\
   MCMachObjectTargetWriter.cpp \
   MCMachOStreamer.cpp \
+  MCModule.cpp \
   MCNullStreamer.cpp \
   MCObjectFileInfo.cpp \
   MCObjectStreamer.cpp \
   MCObjectWriter.cpp \
+  MCPureStreamer.cpp \
   MCSection.cpp \
   MCSectionCOFF.cpp	\
   MCSectionELF.cpp \
@@ -34,12 +39,12 @@ mc_SRC_FILES := \
   MCStreamer.cpp \
   MCSubtargetInfo.cpp \
   MCSymbol.cpp \
+  MCTargetAsmLexer.cpp \
   MCValue.cpp \
   MCWin64EH.cpp \
   WinCOFFObjectWriter.cpp \
   WinCOFFStreamer.cpp \
-  SubtargetFeature.cpp \
-  TargetAsmBackend.cpp
+  SubtargetFeature.cpp
 
 # For the host
 # =====================================================

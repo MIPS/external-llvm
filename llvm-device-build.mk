@@ -2,6 +2,7 @@ LOCAL_CFLAGS :=	\
 	-D_GNU_SOURCE	\
 	-D__STDC_LIMIT_MACROS	\
 	-D__STDC_CONSTANT_MACROS	\
+	-DLLVM_DEFAULT_TARGET_TRIPLE=\"mipsel-unknown-linux\" \
 	-O2	\
 	-fomit-frame-pointer	\
 	-Wall	\
@@ -14,6 +15,7 @@ LOCAL_CFLAGS :=	\
 # We move them from global build/core/combo/TARGET_linux-arm.mk
 # to here.
 LOCAL_CFLAGS := -DANDROID_TARGET_BUILD \
+		-D__android__ \
 		-finline-limit=64 \
 		-finline-functions \
 		-fno-inline-functions-called-once \

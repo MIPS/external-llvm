@@ -25,7 +25,8 @@ LOCAL_STATIC_LIBRARIES := \
   libLLVMBitWriter \
   libLLVMBitReader \
   libLLVMCore \
-  libLLVMSupport
+  libLLVMSupport \
+  libLLVMLibTblGen
 
 LOCAL_LDLIBS += -lpthread -lm -ldl
 

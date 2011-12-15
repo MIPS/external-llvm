@@ -11,8 +11,6 @@ x86_codegen_TBLGEN_TABLES :=	\
     X86GenCallingConv.inc
 
 x86_codegen_SRC_FILES :=	\
-    SSEDomainFix.cpp	\
-    X86AsmBackend.cpp	\
     X86AsmPrinter.cpp	\
     X86COFFMachineModuleInfo.cpp	\
     X86CodeEmitter.cpp	\
@@ -24,14 +22,13 @@ x86_codegen_SRC_FILES :=	\
     X86ISelLowering.cpp	\
     X86InstrInfo.cpp	\
     X86JITInfo.cpp	\
-    X86MachObjectWriter.cpp \
-    X86MCCodeEmitter.cpp	\
     X86MCInstLower.cpp	\
     X86RegisterInfo.cpp	\
     X86SelectionDAGInfo.cpp	\
     X86Subtarget.cpp	\
     X86TargetMachine.cpp	\
-    X86TargetObjectFile.cpp
+    X86TargetObjectFile.cpp \
+	X86VZeroUpper.cpp
 
 # For the host
 # =====================================================

@@ -12,6 +12,10 @@ LOCAL_SRC_FILES :=      \
      PathProfiling.cpp \
      OptimalEdgeProfiling.cpp
 
+ifneq ($(TARGET_ARCH),mips)
+	LOCAL_SRC_FILES += AddressSanitizer.cpp
+endif
+
 LOCAL_MODULE:= libLLVMInstrumentation
 
 LOCAL_MODULE_TAGS := optional

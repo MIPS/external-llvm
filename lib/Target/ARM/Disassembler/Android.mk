@@ -8,8 +8,7 @@ arm_disassembler_TBLGEN_TABLES := \
     ARMGenRegisterInfo.inc
 
 arm_disassembler_SRC_FILES := \
-    ARMDisassembler.cpp \
-    ARMDisassemblerCore.cpp
+    ARMDisassembler.cpp
 
 # For the device
 # =====================================================
@@ -54,4 +53,3 @@ LOCAL_MODULE_TAGS := optional
 include $(LLVM_HOST_BUILD_MK)
 include $(LLVM_TBLGEN_RULES_MK)
 include $(BUILD_HOST_STATIC_LIBRARY)
-

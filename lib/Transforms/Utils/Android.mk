@@ -20,10 +20,12 @@ transforms_utils_SRC_FILES :=	\
 	LowerInvoke.cpp	\
 	LowerSwitch.cpp	\
 	Mem2Reg.cpp	\
+	ModuleUtils.cpp \
 	PromoteMemoryToRegister.cpp	\
 	SSAUpdater.cpp	\
 	SimplifyCFG.cpp	\
 	SimplifyInstructions.cpp	\
+	SimplifyIndVar.cpp \
 	UnifyFunctionExitNodes.cpp	\
 	Utils.cpp \
 	ValueMapper.cpp
@@ -34,6 +36,8 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(transforms_utils_SRC_FILES)
 LOCAL_MODULE:= libLLVMTransformUtils
+
+LOCAL_STATIC_LIBRARIES := libLLVMAnalysis
 
 LOCAL_MODULE_TAGS := optional
 
@@ -47,6 +51,8 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(transforms_utils_SRC_FILES)
 LOCAL_MODULE:= libLLVMTransformUtils
+
+LOCAL_STATIC_LIBRARIES := libLLVMAnalysis
 
 LOCAL_MODULE_TAGS := optional
 

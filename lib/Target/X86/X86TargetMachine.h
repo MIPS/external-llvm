@@ -36,15 +36,12 @@ class X86TargetMachine : public LLVMTargetMachine {
   X86FrameLowering  FrameLowering;
   X86ELFWriterInfo  ELFWriterInfo;
 
-private:
-  // We have specific defaults for X86.
-  virtual void setCodeModelForJIT();
-  virtual void setCodeModelForStatic();
-  
 public:
   X86TargetMachine(const Target &T, StringRef TT, 
                    StringRef CPU, StringRef FS,
-                   Reloc::Model RM, bool is64Bit);
+                   Reloc::Model RM, CodeModel::Model CM,
+                   CodeGenOpt::Level OL,
+                   bool is64Bit);
 
   virtual const X86InstrInfo     *getInstrInfo() const {
     llvm_unreachable("getInstrInfo not implemented");
@@ -70,11 +67,11 @@ public:
   }
 
   // Set up the pass pipeline.
-  virtual bool addInstSelector(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addPreRegAlloc(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addPostRegAlloc(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addPreEmitPass(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addCodeEmitter(PassManagerBase &PM, CodeGenOpt::Level OptLevel,
+  virtual bool addInstSelector(PassManagerBase &PM);
+  virtual bool addPreRegAlloc(PassManagerBase &PM);
+  virtual bool addPostRegAlloc(PassManagerBase &PM);
+  virtual bool addPreEmitPass(PassManagerBase &PM);
+  virtual bool addCodeEmitter(PassManagerBase &PM,
                               JITCodeEmitter &JCE);
 };
 
@@ -88,7 +85,9 @@ class X86_32TargetMachine : public X86TargetMachine {
   X86JITInfo        JITInfo;
 public:
   X86_32TargetMachine(const Target &T, StringRef TT,
-                      StringRef CPU, StringRef FS, Reloc::Model RM);
+                      StringRef CPU, StringRef FS,
+                      Reloc::Model RM, CodeModel::Model CM,
+                      CodeGenOpt::Level OL);
   virtual const TargetData *getTargetData() const { return &DataLayout; }
   virtual const X86TargetLowering *getTargetLowering() const {
     return &TLInfo;
@@ -114,7 +113,9 @@ class X86_64TargetMachine : public X86TargetMachine {
   X86JITInfo        JITInfo;
 public:
   X86_64TargetMachine(const Target &T, StringRef TT,
-                      StringRef CPU, StringRef FS, Reloc::Model RM);
+                      StringRef CPU, StringRef FS,
+                      Reloc::Model RM, CodeModel::Model CM,
+                      CodeGenOpt::Level OL);
   virtual const TargetData *getTargetData() const { return &DataLayout; }
   virtual const X86TargetLowering *getTargetLowering() const {
     return &TLInfo;

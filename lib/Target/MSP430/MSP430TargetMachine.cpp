@@ -16,7 +16,7 @@
 #include "llvm/PassManager.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/MC/MCAsmInfo.h"
-#include "llvm/Target/TargetRegistry.h"
+#include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
 
 extern "C" void LLVMInitializeMSP430Target() {
@@ -27,8 +27,10 @@ extern "C" void LLVMInitializeMSP430Target() {
 MSP430TargetMachine::MSP430TargetMachine(const Target &T,
                                          StringRef TT,
                                          StringRef CPU,
-                                         StringRef FS, Reloc::Model RM)
-  : LLVMTargetMachine(T, TT, CPU, FS, RM),
+                                         StringRef FS,
+                                         Reloc::Model RM, CodeModel::Model CM,
+                                         CodeGenOpt::Level OL)
+  : LLVMTargetMachine(T, TT, CPU, FS, RM, CM, OL),
     Subtarget(TT, CPU, FS),
     // FIXME: Check TargetData string.
     DataLayout("e-p:16:16:16-i8:8:8-i16:16:16-i32:16:32-n8:16"),
@@ -36,15 +38,13 @@ MSP430TargetMachine::MSP430TargetMachine(const Target &T,
     FrameLowering(Subtarget) { }
 
 
-bool MSP430TargetMachine::addInstSelector(PassManagerBase &PM,
-                                          CodeGenOpt::Level OptLevel) {
+bool MSP430TargetMachine::addInstSelector(PassManagerBase &PM) {
   // Install an instruction selector.
-  PM.add(createMSP430ISelDag(*this, OptLevel));
+  PM.add(createMSP430ISelDag(*this, getOptLevel()));
   return false;
 }
 
-bool MSP430TargetMachine::addPreEmitPass(PassManagerBase &PM,
-                                         CodeGenOpt::Level OptLevel) {
+bool MSP430TargetMachine::addPreEmitPass(PassManagerBase &PM) {
   // Must run branch selection immediately preceding the asm printer.
   PM.add(createMSP430BranchSelectionPass());
   return false;

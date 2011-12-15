@@ -1,4 +1,3 @@
-; RUN: llc < %s -march=x86 -regalloc=linearscan | FileCheck %s
 ; RUN: llc < %s -march=x86 -regalloc=fast       | FileCheck %s
 ; RUN: llc < %s -march=x86 -regalloc=basic      | FileCheck %s
 ; RUN: llc < %s -march=x86 -regalloc=greedy     | FileCheck %s
@@ -18,7 +17,7 @@
 ; CHECK-NOT: [[A3]]
 ; CHECK: 5th=[[A5:%...]]
 ; CHECK-NOT: [[A1]]
-; CHECK-NOT; [[A5]]
+; CHECK-NOT: [[A5]]
 ; CHECK: =4th
 
 ; The 6th operand is an 8-bit register, and it mustn't alias the 1st and 5th.

@@ -7,12 +7,15 @@ support_SRC_FILES :=   \
 	APSInt.cpp  \
 	Atomic.cpp  \
 	BranchProbability.cpp \
+	BlockFrequency.cpp \
 	CommandLine.cpp \
 	ConstantRange.cpp   \
 	CrashRecoveryContext.cpp	\
 	DAGDeltaAlgorithm.cpp	\
+	DataExtractor.cpp \
 	Debug.cpp   \
 	DeltaAlgorithm.cpp  \
+	Disassembler.cpp \
 	Dwarf.cpp   \
 	DynamicLibrary.cpp	\
 	Errno.cpp	\
@@ -22,6 +25,7 @@ support_SRC_FILES :=   \
 	FormattedStream.cpp \
 	GraphWriter.cpp \
 	Host.cpp	\
+	IncludeFile.cpp \
 	IntervalMap.cpp \
 	IntEqClasses.cpp\
 	IsInf.cpp   \
@@ -72,7 +76,6 @@ support_SRC_FILES :=   \
 # For the host
 # =====================================================
 include $(CLEAR_VARS)
-
 # FIXME: This only requires RTTI because tblgen uses it.  Fix that.
 REQUIRES_RTTI := 1
 

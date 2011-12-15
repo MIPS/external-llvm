@@ -3,11 +3,16 @@ LOCAL_PATH := $(call my-dir)
 arm_mc_desc_TBLGEN_TABLES :=	\
 	ARMGenRegisterInfo.inc	\
 	ARMGenInstrInfo.inc	\
-	ARMGenSubtargetInfo.inc
+	ARMGenSubtargetInfo.inc \
+	ARMGenMCCodeEmitter.inc
 
 arm_mc_desc_SRC_FILES :=   \
 	ARMMCAsmInfo.cpp \
-	ARMMCTargetDesc.cpp
+	ARMMCTargetDesc.cpp \
+	ARMAsmBackend.cpp \
+	ARMMachObjectWriter.cpp \
+	ARMMCCodeEmitter.cpp \
+	ARMMCExpr.cpp
 
 # For the host
 # =====================================================
@@ -17,6 +22,8 @@ include $(CLEAR_TBLGEN_VARS)
 TBLGEN_TABLES := $(arm_mc_desc_TBLGEN_TABLES)
 
 LOCAL_SRC_FILES := $(arm_mc_desc_SRC_FILES)
+
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/..
 
 LOCAL_MODULE:= libLLVMARMDesc
 
@@ -36,6 +43,8 @@ include $(CLEAR_TBLGEN_VARS)
 TBLGEN_TABLES := $(arm_mc_desc_TBLGEN_TABLES)
 
 LOCAL_SRC_FILES := $(arm_mc_desc_SRC_FILES)
+
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/..
 
 LOCAL_MODULE:= libLLVMARMDesc
 

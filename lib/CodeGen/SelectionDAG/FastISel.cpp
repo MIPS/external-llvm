@@ -39,6 +39,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "isel"
 #include "llvm/Function.h"
 #include "llvm/GlobalVariable.h"
 #include "llvm/Instructions.h"
@@ -58,7 +59,11 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/ADT/Statistic.h"
 using namespace llvm;
+
+STATISTIC(NumFastIselSuccessIndependent, "Number of insts selected by target-independent selector");
+STATISTIC(NumFastIselSuccessTarget, "Number of insts selected by target-specific selector");
 
 /// startNewBlock - Set the current block to which generated machine
 /// instructions will be appended, and clear the local CSE map.
@@ -66,17 +71,22 @@ using namespace llvm;
 void FastISel::startNewBlock() {
   LocalValueMap.clear();
 
-  // Start out as null, meaining no local-value instructions have
-  // been emitted.
-  LastLocalValue = 0;
+  EmitStartPt = 0;
 
-  // Advance the last local value past any EH_LABEL instructions.
+  // Advance the emit start point past any EH_LABEL instructions.
   MachineBasicBlock::iterator
     I = FuncInfo.MBB->begin(), E = FuncInfo.MBB->end();
   while (I != E && I->getOpcode() == TargetOpcode::EH_LABEL) {
-    LastLocalValue = I;
+    EmitStartPt = I;
     ++I;
   }
+  LastLocalValue = EmitStartPt;
+}
+
+void FastISel::flushLocalValueMap() {
+  LocalValueMap.clear();
+  LastLocalValue = EmitStartPt;
+  recomputeInsertPt();
 }
 
 bool FastISel::hasTrivialKill(const Value *V) const {
@@ -89,6 +99,11 @@ bool FastISel::hasTrivialKill(const Value *V) const {
   if (const CastInst *Cast = dyn_cast<CastInst>(I))
     if (Cast->isNoopCast(TD.getIntPtrType(Cast->getContext())) &&
         !hasTrivialKill(Cast->getOperand(0)))
+      return false;
+
+  // GEPs with all zero indices are trivially coalesced by fast-isel.
+  if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I))
+    if (GEP->hasAllZeroIndices() && !hasTrivialKill(GEP->getOperand(0)))
       return false;
 
   // Only instructions with a single use in the same basic block are considered
@@ -422,6 +437,11 @@ bool FastISel::SelectGetElementPtr(const User *I) {
 
   bool NIsKill = hasTrivialKill(I->getOperand(0));
 
+  // Keep a running tab of the total offset to coalesce multiple N = N + Offset
+  // into a single N = N + TotalOffset.
+  uint64_t TotalOffs = 0;
+  // FIXME: What's a good SWAG number for MaxOffs?
+  uint64_t MaxOffs = 2048;
   Type *Ty = I->getOperand(0)->getType();
   MVT VT = TLI.getPointerTy();
   for (GetElementPtrInst::const_op_iterator OI = I->op_begin()+1,
@@ -431,14 +451,15 @@ bool FastISel::SelectGetElementPtr(const User *I) {
       unsigned Field = cast<ConstantInt>(Idx)->getZExtValue();
       if (Field) {
         // N = N + Offset
-        uint64_t Offs = TD.getStructLayout(StTy)->getElementOffset(Field);
-        // FIXME: This can be optimized by combining the add with a
-        // subsequent one.
-        N = FastEmit_ri_(VT, ISD::ADD, N, NIsKill, Offs, VT);
-        if (N == 0)
-          // Unhandled operand. Halt "fast" selection and bail.
-          return false;
-        NIsKill = true;
+        TotalOffs += TD.getStructLayout(StTy)->getElementOffset(Field);
+        if (TotalOffs >= MaxOffs) {
+          N = FastEmit_ri_(VT, ISD::ADD, N, NIsKill, TotalOffs, VT);
+          if (N == 0)
+            // Unhandled operand. Halt "fast" selection and bail.
+            return false;
+          NIsKill = true;
+          TotalOffs = 0;
+        }
       }
       Ty = StTy->getElementType(Field);
     } else {
@@ -447,14 +468,26 @@ bool FastISel::SelectGetElementPtr(const User *I) {
       // If this is a constant subscript, handle it quickly.
       if (const ConstantInt *CI = dyn_cast<ConstantInt>(Idx)) {
         if (CI->isZero()) continue;
-        uint64_t Offs =
+        // N = N + Offset
+        TotalOffs += 
           TD.getTypeAllocSize(Ty)*cast<ConstantInt>(CI)->getSExtValue();
-        N = FastEmit_ri_(VT, ISD::ADD, N, NIsKill, Offs, VT);
+        if (TotalOffs >= MaxOffs) {
+          N = FastEmit_ri_(VT, ISD::ADD, N, NIsKill, TotalOffs, VT);
+          if (N == 0)
+            // Unhandled operand. Halt "fast" selection and bail.
+            return false;
+          NIsKill = true;
+          TotalOffs = 0;
+        }
+        continue;
+      }
+      if (TotalOffs) {
+        N = FastEmit_ri_(VT, ISD::ADD, N, NIsKill, TotalOffs, VT);
         if (N == 0)
           // Unhandled operand. Halt "fast" selection and bail.
           return false;
         NIsKill = true;
-        continue;
+        TotalOffs = 0;
       }
 
       // N = N + Idx * ElementSize;
@@ -479,6 +512,12 @@ bool FastISel::SelectGetElementPtr(const User *I) {
         return false;
     }
   }
+  if (TotalOffs) {
+    N = FastEmit_ri_(VT, ISD::ADD, N, NIsKill, TotalOffs, VT);
+    if (N == 0)
+      // Unhandled operand. Halt "fast" selection and bail.
+      return false;
+  }
 
   // We successfully emitted code for the given LLVM Instruction.
   UpdateValueMap(I, N);
@@ -489,7 +528,7 @@ bool FastISel::SelectCall(const User *I) {
   const CallInst *Call = cast<CallInst>(I);
 
   // Handle simple inline asms.
-  if (const InlineAsm *IA = dyn_cast<InlineAsm>(Call->getArgOperand(0))) {
+  if (const InlineAsm *IA = dyn_cast<InlineAsm>(Call->getCalledValue())) {
     // Don't attempt to handle constraints.
     if (!IA->getConstraintString().empty())
       return false;
@@ -526,13 +565,10 @@ bool FastISel::SelectCall(const User *I) {
     unsigned Reg = 0;
     unsigned Offset = 0;
     if (const Argument *Arg = dyn_cast<Argument>(Address)) {
-      if (Arg->hasByValAttr()) {
-        // Byval arguments' frame index is recorded during argument lowering.
-        // Use this info directly.
-        Offset = FuncInfo.getByValArgumentFrameIndex(Arg);
-        if (Offset)
-          Reg = TRI.getFrameRegister(*FuncInfo.MF);
-      }
+      // Some arguments' frame index is recorded during argument lowering.
+      Offset = FuncInfo.getArgumentFrameIndex(Arg);
+      if (Offset)
+	Reg = TRI.getFrameRegister(*FuncInfo.MF);
     }
     if (!Reg)
       Reg = getRegForValue(Address);
@@ -645,6 +681,16 @@ bool FastISel::SelectCall(const User *I) {
   }
   }
 
+  // Usually, it does not make sense to initialize a value,
+  // make an unrelated function call and use the value, because
+  // it tends to be spilled on the stack. So, we move the pointer
+  // to the last local value to the beginning of the block, so that
+  // all the values which have already been materialized,
+  // appear after the call. It also makes sense to skip intrinsics
+  // since they tend to be inlined.
+  if (!isa<IntrinsicInst>(F))
+    flushLocalValueMap();
+
   // An arbitrary call. Bail.
   return false;
 }
@@ -748,12 +794,14 @@ FastISel::SelectInstruction(const Instruction *I) {
 
   // First, try doing target-independent selection.
   if (SelectOperator(I, I->getOpcode())) {
+    ++NumFastIselSuccessIndependent;
     DL = DebugLoc();
     return true;
   }
 
   // Next, try calling the target to attempt to handle the instruction.
   if (TargetSelectInstruction(I)) {
+    ++NumFastIselSuccessTarget;
     DL = DebugLoc();
     return true;
   }

@@ -19,10 +19,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetAsmInfo.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
 using namespace llvm;
 
@@ -373,10 +371,7 @@ void MCDwarfLineAddr::Encode(int64_t LineDelta, uint64_t AddrDelta,
   // it with DW_LNS_advance_line.
   if (Temp >= DWARF2_LINE_RANGE) {
     OS << char(dwarf::DW_LNS_advance_line);
-    SmallString<32> Tmp;
-    raw_svector_ostream OSE(Tmp);
-    MCObjectWriter::EncodeSLEB128(LineDelta, OSE);
-    OS << OSE.str();
+    MCObjectWriter::EncodeSLEB128(LineDelta, OS);
 
     LineDelta = 0;
     Temp = 0 - DWARF2_LINE_BASE;
@@ -412,10 +407,7 @@ void MCDwarfLineAddr::Encode(int64_t LineDelta, uint64_t AddrDelta,
 
   // Otherwise use DW_LNS_advance_pc.
   OS << char(dwarf::DW_LNS_advance_pc);
-  SmallString<32> Tmp;
-  raw_svector_ostream OSE(Tmp);
-  MCObjectWriter::EncodeULEB128(AddrDelta, OSE);
-  OS << OSE.str();
+  MCObjectWriter::EncodeULEB128(AddrDelta, OS);
 
   if (NeedCopy)
     OS << char(dwarf::DW_LNS_copy);
@@ -505,10 +497,11 @@ namespace {
     bool IsEH;
     const MCSymbol *SectionStart;
   public:
-    FrameEmitterImpl(bool usingCFI, bool isEH, const MCSymbol *sectionStart) :
-      CFAOffset(0), CIENum(0), UsingCFI(usingCFI), IsEH(isEH),
-      SectionStart(sectionStart) {
-    }
+    FrameEmitterImpl(bool usingCFI, bool isEH)
+      : CFAOffset(0), CIENum(0), UsingCFI(usingCFI), IsEH(isEH),
+        SectionStart(0) {}
+
+    void setSectionStart(const MCSymbol *Label) { SectionStart = Label; }
 
     /// EmitCompactUnwind - Emit the unwind information in a compact way. If
     /// we're successful, return 'true'. Otherwise, return 'false' and it will
@@ -691,7 +684,6 @@ bool FrameEmitterImpl::EmitCompactUnwind(MCStreamer &Streamer,
                                          const MCDwarfFrameInfo &Frame) {
   MCContext &Context = Streamer.getContext();
   const MCObjectFileInfo *MOFI = Context.getObjectFileInfo();
-  const TargetAsmInfo &TAI = Context.getTargetAsmInfo();
   bool VerboseAsm = Streamer.isVerboseAsm();
 
   // range-start range-length  compact-unwind-enc personality-func   lsda
@@ -726,7 +718,7 @@ bool FrameEmitterImpl::EmitCompactUnwind(MCStreamer &Streamer,
   Streamer.SwitchSection(MOFI->getCompactUnwindSection());
 
   // Range Start
-  unsigned FDEEncoding = TAI.getFDEEncoding(UsingCFI);
+  unsigned FDEEncoding = MOFI->getFDEEncoding(UsingCFI);
   unsigned Size = getSizeForEncoding(Streamer, FDEEncoding);
   if (VerboseAsm) Streamer.AddComment("Range Start");
   Streamer.EmitSymbolValue(Frame.Function, Size);
@@ -739,8 +731,8 @@ bool FrameEmitterImpl::EmitCompactUnwind(MCStreamer &Streamer,
 
   // Compact Encoding
   Size = getSizeForEncoding(Streamer, dwarf::DW_EH_PE_udata4);
-  if (VerboseAsm) Streamer.AddComment(Twine("Compact Unwind Encoding: 0x") +
-                                      Twine(llvm::utohexstr(Encoding)));
+  if (VerboseAsm) Streamer.AddComment("Compact Unwind Encoding: 0x" +
+                                      Twine::utohexstr(Encoding));
   Streamer.EmitIntValue(Encoding, Size);
 
 
@@ -771,7 +763,6 @@ const MCSymbol &FrameEmitterImpl::EmitCIE(MCStreamer &streamer,
   MCContext &context = streamer.getContext();
   const MCRegisterInfo &MRI = context.getRegisterInfo();
   const MCObjectFileInfo *MOFI = context.getObjectFileInfo();
-  const TargetAsmInfo &TAI = context.getTargetAsmInfo();
   bool verboseAsm = streamer.isVerboseAsm();
 
   MCSymbol *sectionStart;
@@ -858,7 +849,7 @@ const MCSymbol &FrameEmitterImpl::EmitCIE(MCStreamer &streamer,
       EmitEncodingByte(streamer, lsdaEncoding, "LSDA Encoding");
 
     // Encoding of the FDE pointers
-    EmitEncodingByte(streamer, TAI.getFDEEncoding(UsingCFI),
+    EmitEncodingByte(streamer, MOFI->getFDEEncoding(UsingCFI),
                      "FDE Encoding");
   }
 
@@ -895,10 +886,9 @@ MCSymbol *FrameEmitterImpl::EmitFDE(MCStreamer &streamer,
   MCSymbol *fdeStart = context.CreateTempSymbol();
   MCSymbol *fdeEnd = context.CreateTempSymbol();
   const MCObjectFileInfo *MOFI = context.getObjectFileInfo();
-  const TargetAsmInfo &TAI = context.getTargetAsmInfo();
   bool verboseAsm = streamer.isVerboseAsm();
 
-  if (!MOFI->isFunctionEHFrameSymbolPrivate() && IsEH) {
+  if (IsEH && frame.Function && !MOFI->isFunctionEHFrameSymbolPrivate()) {
     MCSymbol *EHSym =
       context.GetOrCreateSymbol(frame.Function->getName() + Twine(".eh"));
     streamer.EmitEHSymAttributes(frame.Function, EHSym);
@@ -927,7 +917,7 @@ MCSymbol *FrameEmitterImpl::EmitFDE(MCStreamer &streamer,
     streamer.EmitSymbolValue(&cieStart, 4);
   }
 
-  unsigned fdeEncoding = TAI.getFDEEncoding(UsingCFI);
+  unsigned fdeEncoding = MOFI->getFDEEncoding(UsingCFI);
   unsigned size = getSizeForEncoding(streamer, fdeEncoding);
 
   // PC Begin
@@ -1015,26 +1005,33 @@ void MCDwarfFrameEmitter::Emit(MCStreamer &Streamer,
   MCContext &Context = Streamer.getContext();
   MCObjectFileInfo *MOFI =
     const_cast<MCObjectFileInfo*>(Context.getObjectFileInfo());
+  FrameEmitterImpl Emitter(UsingCFI, IsEH);
+  ArrayRef<MCDwarfFrameInfo> FrameArray = Streamer.getFrameInfos();
+
+  // Emit the compact unwind info if available.
+  // FIXME: This emits both the compact unwind and the old CIE/FDE
+  //        information. Only one of those is needed.
+  // FIXME: Disable. This seems to still be causing failures.
+  if (false && IsEH && MOFI->getCompactUnwindSection())
+    for (unsigned i = 0, n = Streamer.getNumFrameInfos(); i < n; ++i) {
+      const MCDwarfFrameInfo &Frame = Streamer.getFrameInfo(i);
+      if (Frame.CompactUnwindEncoding)
+        Emitter.EmitCompactUnwind(Streamer, Frame);
+    }
+
   const MCSection &Section = IsEH ? *MOFI->getEHFrameSection() :
                                     *MOFI->getDwarfFrameSection();
   Streamer.SwitchSection(&Section);
   MCSymbol *SectionStart = Context.CreateTempSymbol();
   Streamer.EmitLabel(SectionStart);
+  Emitter.setSectionStart(SectionStart);
 
   MCSymbol *FDEEnd = NULL;
   DenseMap<CIEKey, const MCSymbol*> CIEStarts;
-  FrameEmitterImpl Emitter(UsingCFI, IsEH, SectionStart);
 
   const MCSymbol *DummyDebugKey = NULL;
-  for (unsigned i = 0, n = Streamer.getNumFrameInfos(); i < n; ++i) {
-    const MCDwarfFrameInfo &Frame = Streamer.getFrameInfo(i);
-    if (IsEH && MOFI->getCompactUnwindSection() &&
-        Frame.CompactUnwindEncoding &&
-        Emitter.EmitCompactUnwind(Streamer, Frame)) {
-      FDEEnd = NULL;
-      continue;
-    }
-
+  for (unsigned i = 0, n = FrameArray.size(); i < n; ++i) {
+    const MCDwarfFrameInfo &Frame = FrameArray[i];
     CIEKey Key(Frame.Personality, Frame.PersonalityEncoding,
                Frame.LsdaEncoding);
     const MCSymbol *&CIEStart = IsEH ? CIEStarts[Key] : DummyDebugKey;

@@ -10,9 +10,11 @@ LOCAL_STATIC_LIBRARIES := \
     libLLVMBitReader \
     libLLVMBitWriter \
     libLLVMCore \
-    libLLVMSupport \
     libLLVMAsmParser \
-    libLLVMTransformUtils
+    libLLVMTransformUtils \
+    libLLVMAnalysis \
+    libLLVMTarget \
+    libLLVMSupport \
 
 LOCAL_MODULE := llvm-link
 

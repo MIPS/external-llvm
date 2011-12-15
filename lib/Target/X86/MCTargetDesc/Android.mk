@@ -7,7 +7,10 @@ x86_mc_desc_TBLGEN_TABLES :=	\
 
 x86_mc_desc_SRC_FILES :=   \
 	X86MCAsmInfo.cpp \
-	X86MCTargetDesc.cpp
+	X86MCTargetDesc.cpp \
+	X86AsmBackend.cpp \
+	X86MachObjectWriter.cpp \
+	X86MCCodeEmitter.cpp
 
 # For the host
 # =====================================================
@@ -17,6 +20,8 @@ include $(CLEAR_TBLGEN_VARS)
 TBLGEN_TABLES := $(x86_mc_desc_TBLGEN_TABLES)
 
 LOCAL_SRC_FILES := $(x86_mc_desc_SRC_FILES)
+
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/..
 
 LOCAL_MODULE:= libLLVMX86Desc
 
@@ -36,6 +41,8 @@ include $(CLEAR_TBLGEN_VARS)
 TBLGEN_TABLES := $(x86_mc_desc_TBLGEN_TABLES)
 
 LOCAL_SRC_FILES := $(x86_mc_desc_SRC_FILES)
+
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/..
 
 LOCAL_MODULE:= libLLVMX86Desc
 

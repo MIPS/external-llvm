@@ -144,8 +144,6 @@ namespace llvm {
 
     if (OptLevel == CodeGenOpt::None)
       return createSourceListDAGScheduler(IS, OptLevel);
-    if (TLI.getSchedulingPreference() == Sched::Latency)
-      return createTDListDAGScheduler(IS, OptLevel);
     if (TLI.getSchedulingPreference() == Sched::RegPressure)
       return createBURRListDAGScheduler(IS, OptLevel);
     if (TLI.getSchedulingPreference() == Sched::Hybrid)
@@ -175,6 +173,13 @@ TargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
 #endif
   llvm_unreachable(0);
   return 0;
+}
+
+void TargetLowering::AdjustInstrPostInstrSelection(MachineInstr *MI,
+                                                   SDNode *Node) const {
+  assert(!MI->getDesc().hasPostISelHook() &&
+         "If a target marks an instruction with 'hasPostISelHook', "
+         "it must implement TargetLowering::AdjustInstrPostInstrSelection!");
 }
 
 //===----------------------------------------------------------------------===//
@@ -463,6 +468,7 @@ void SelectionDAGISel::CodeGenAndEmitDAG() {
     GroupName = "Instruction Selection and Scheduling";
   std::string BlockName;
   int BlockNumber = -1;
+  (void)BlockNumber;
 #ifdef NDEBUG
   if (ViewDAGCombine1 || ViewLegalizeTypesDAGs || ViewLegalizeDAGs ||
       ViewDAGCombine2 || ViewDAGCombineLT || ViewISelDAGs || ViewSchedDAGs ||
@@ -470,8 +476,8 @@ void SelectionDAGISel::CodeGenAndEmitDAG() {
 #endif
   {
     BlockNumber = FuncInfo->MBB->getNumber();
-    BlockName = MF->getFunction()->getNameStr() + ":" +
-                FuncInfo->MBB->getBasicBlock()->getNameStr();
+    BlockName = MF->getFunction()->getName().str() + ":" +
+                FuncInfo->MBB->getBasicBlock()->getName().str();
   }
   DEBUG(dbgs() << "Initial selection DAG: BB#" << BlockNumber
         << " '" << BlockName << "'\n"; CurDAG->dump());
@@ -481,7 +487,7 @@ void SelectionDAGISel::CodeGenAndEmitDAG() {
   // Run the DAG combiner in pre-legalize mode.
   {
     NamedRegionTimer T("DAG Combining 1", GroupName, TimePassesIsEnabled);
-    CurDAG->Combine(Unrestricted, *AA, OptLevel);
+    CurDAG->Combine(BeforeLegalizeTypes, *AA, OptLevel);
   }
 
   DEBUG(dbgs() << "Optimized lowered selection DAG: BB#" << BlockNumber
@@ -509,7 +515,7 @@ void SelectionDAGISel::CodeGenAndEmitDAG() {
     {
       NamedRegionTimer T("DAG Combining after legalize types", GroupName,
                          TimePassesIsEnabled);
-      CurDAG->Combine(NoIllegalTypes, *AA, OptLevel);
+      CurDAG->Combine(AfterLegalizeTypes, *AA, OptLevel);
     }
 
     DEBUG(dbgs() << "Optimized type-legalized selection DAG: BB#" << BlockNumber
@@ -534,7 +540,7 @@ void SelectionDAGISel::CodeGenAndEmitDAG() {
     {
       NamedRegionTimer T("DAG Combining after legalize vectors", GroupName,
                          TimePassesIsEnabled);
-      CurDAG->Combine(NoIllegalOperations, *AA, OptLevel);
+      CurDAG->Combine(AfterLegalizeVectorOps, *AA, OptLevel);
     }
 
     DEBUG(dbgs() << "Optimized vector-legalized selection DAG: BB#"
@@ -556,7 +562,7 @@ void SelectionDAGISel::CodeGenAndEmitDAG() {
   // Run the DAG combiner in post-legalize mode.
   {
     NamedRegionTimer T("DAG Combining 2", GroupName, TimePassesIsEnabled);
-    CurDAG->Combine(NoIllegalOperations, *AA, OptLevel);
+    CurDAG->Combine(AfterLegalizeDAG, *AA, OptLevel);
   }
 
   DEBUG(dbgs() << "Optimized legalized selection DAG: BB#" << BlockNumber
@@ -677,21 +683,26 @@ void SelectionDAGISel::DoInstructionSelection() {
 /// PrepareEHLandingPad - Emit an EH_LABEL, set up live-in registers, and
 /// do other setup for EH landing-pad blocks.
 void SelectionDAGISel::PrepareEHLandingPad() {
+  MachineBasicBlock *MBB = FuncInfo->MBB;
+
   // Add a label to mark the beginning of the landing pad.  Deletion of the
   // landing pad can thus be detected via the MachineModuleInfo.
-  MCSymbol *Label = MF->getMMI().addLandingPad(FuncInfo->MBB);
+  MCSymbol *Label = MF->getMMI().addLandingPad(MBB);
 
+  // Assign the call site to the landing pad's begin label.
+  MF->getMMI().setCallSiteLandingPad(Label, SDB->LPadToCallSiteMap[MBB]);
+    
   const MCInstrDesc &II = TM.getInstrInfo()->get(TargetOpcode::EH_LABEL);
-  BuildMI(*FuncInfo->MBB, FuncInfo->InsertPt, SDB->getCurDebugLoc(), II)
+  BuildMI(*MBB, FuncInfo->InsertPt, SDB->getCurDebugLoc(), II)
     .addSym(Label);
 
   // Mark exception register as live in.
   unsigned Reg = TLI.getExceptionAddressRegister();
-  if (Reg) FuncInfo->MBB->addLiveIn(Reg);
+  if (Reg) MBB->addLiveIn(Reg);
 
   // Mark exception selector register as live in.
   Reg = TLI.getExceptionSelectorRegister();
-  if (Reg) FuncInfo->MBB->addLiveIn(Reg);
+  if (Reg) MBB->addLiveIn(Reg);
 
   // FIXME: Hack around an exception handling flaw (PR1508): the personality
   // function and list of typeids logically belong to the invoke (or, if you
@@ -704,7 +715,7 @@ void SelectionDAGISel::PrepareEHLandingPad() {
   // in exceptions not being caught because no typeids are associated with
   // the invoke.  This may not be the only way things can go wrong, but it
   // is the only way we try to work around for the moment.
-  const BasicBlock *LLVMBB = FuncInfo->MBB->getBasicBlock();
+  const BasicBlock *LLVMBB = MBB->getBasicBlock();
   const BranchInst *Br = dyn_cast<BranchInst>(LLVMBB->getTerminator());
 
   if (Br && Br->isUnconditional()) { // Critical edge?
@@ -718,8 +729,6 @@ void SelectionDAGISel::PrepareEHLandingPad() {
       CopyCatchInfo(Br->getSuccessor(0), LLVMBB, &MF->getMMI(), *FuncInfo);
   }
 }
-
-
 
 /// TryToFoldFastISelLoad - We're checking to see if we can fold the specified
 /// load into the specified FoldInst.  Note that we could have a sequence where
@@ -741,7 +750,7 @@ bool SelectionDAGISel::TryToFoldFastISelLoad(const LoadInst *LI,
   // isn't one of the folded instructions, then we can't succeed here.  Handle
   // this by scanning the single-use users of the load until we get to FoldInst.
   unsigned MaxUsers = 6;  // Don't scan down huge single-use chains of instrs.
-  
+
   const Instruction *TheUser = LI->use_back();
   while (TheUser != FoldInst &&   // Scan up until we find FoldInst.
          // Stay in the right block.
@@ -750,10 +759,15 @@ bool SelectionDAGISel::TryToFoldFastISelLoad(const LoadInst *LI,
     // If there are multiple or no uses of this instruction, then bail out.
     if (!TheUser->hasOneUse())
       return false;
-    
+
     TheUser = TheUser->use_back();
   }
-  
+
+  // If we didn't find the fold instruction, then we failed to collapse the
+  // sequence.
+  if (TheUser != FoldInst)
+    return false;
+
   // Don't try to fold volatile loads.  Target has to deal with alignment
   // constraints.
   if (LI->isVolatile()) return false;
@@ -802,6 +816,7 @@ static bool isFoldedOrDeadInstruction(const Instruction *I,
   return !I->mayWriteToMemory() && // Side-effecting instructions aren't folded.
          !isa<TerminatorInst>(I) && // Terminators aren't folded.
          !isa<DbgInfoIntrinsic>(I) &&  // Debug instructions aren't folded.
+         !isa<LandingPadInst>(I) &&    // Landingpad instructions aren't folded.
          !FuncInfo->isExportedInst(I); // Exported instrs must be computed.
 }
 
@@ -877,13 +892,16 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
           FastIS->setLastLocalValue(0);
       }
 
+      unsigned NumFastIselRemaining = std::distance(Begin, End);
       // Do FastISel on as many instructions as possible.
       for (; BI != Begin; --BI) {
         const Instruction *Inst = llvm::prior(BI);
 
         // If we no longer require this instruction, skip it.
-        if (isFoldedOrDeadInstruction(Inst, FuncInfo))
+        if (isFoldedOrDeadInstruction(Inst, FuncInfo)) {
+          --NumFastIselRemaining;
           continue;
+        }
 
         // Bottom-up: reset the insert pos at the top, after any local-value
         // instructions.
@@ -891,6 +909,7 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
 
         // Try to select the instruction with FastISel.
         if (FastIS->SelectInstruction(Inst)) {
+          --NumFastIselRemaining;
           ++NumFastIselSuccess;
           // If fast isel succeeded, skip over all the folded instructions, and
           // then see if there is a load right before the selected instructions.
@@ -903,15 +922,18 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
           }
           if (BeforeInst != Inst && isa<LoadInst>(BeforeInst) &&
               BeforeInst->hasOneUse() &&
-              TryToFoldFastISelLoad(cast<LoadInst>(BeforeInst), Inst, FastIS))
+              TryToFoldFastISelLoad(cast<LoadInst>(BeforeInst), Inst, FastIS)) {
             // If we succeeded, don't re-select the load.
             BI = llvm::next(BasicBlock::const_iterator(BeforeInst));
+            --NumFastIselRemaining;
+            ++NumFastIselSuccess;
+          }
           continue;
         }
 
         // Then handle certain instructions as single-LLVM-Instruction blocks.
         if (isa<CallInst>(Inst)) {
-          ++NumFastIselFailures;
+
           if (EnableFastISelVerbose || EnableFastISelAbort) {
             dbgs() << "FastISel missed call: ";
             Inst->dump();
@@ -926,24 +948,30 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
           bool HadTailCall = false;
           SelectBasicBlock(Inst, BI, HadTailCall);
 
+          // Recompute NumFastIselRemaining as Selection DAG instruction
+          // selection may have handled the call, input args, etc.
+          unsigned RemainingNow = std::distance(Begin, BI);
+          NumFastIselFailures += NumFastIselRemaining - RemainingNow;
+
           // If the call was emitted as a tail call, we're done with the block.
           if (HadTailCall) {
             --BI;
             break;
           }
 
+          NumFastIselRemaining = RemainingNow;
           continue;
         }
 
         if (isa<TerminatorInst>(Inst) && !isa<BranchInst>(Inst)) {
           // Don't abort, and use a different message for terminator misses.
-          ++NumFastIselFailures;
+          NumFastIselFailures += NumFastIselRemaining;
           if (EnableFastISelVerbose || EnableFastISelAbort) {
             dbgs() << "FastISel missed terminator: ";
             Inst->dump();
           }
         } else {
-          ++NumFastIselFailures;
+          NumFastIselFailures += NumFastIselRemaining;
           if (EnableFastISelVerbose || EnableFastISelAbort) {
             dbgs() << "FastISel miss: ";
             Inst->dump();

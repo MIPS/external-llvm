@@ -22,6 +22,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Target/TargetFrameLowering.h"
+#include "MipsJITInfo.h"
 
 namespace llvm {
   class formatted_raw_ostream;
@@ -33,10 +34,14 @@ namespace llvm {
     MipsFrameLowering   FrameLowering;
     MipsTargetLowering  TLInfo;
     MipsSelectionDAGInfo TSInfo;
+    MipsJITInfo JITInfo;
+
   public:
     MipsTargetMachine(const Target &T, StringRef TT,
                       StringRef CPU, StringRef FS,
-                      Reloc::Model RM, bool isLittle);
+                      Reloc::Model RM, CodeModel::Model CM,
+                      CodeGenOpt::Level OL,
+                      bool isLittle);
 
     virtual const MipsInstrInfo   *getInstrInfo()     const
     { return &InstrInfo; }
@@ -46,6 +51,9 @@ namespace llvm {
     { return &Subtarget; }
     virtual const TargetData      *getTargetData()    const
     { return &DataLayout;}
+    virtual MipsJITInfo *getJITInfo()
+    { return &JITInfo; }
+
 
     virtual const MipsRegisterInfo *getRegisterInfo()  const {
       return &InstrInfo.getRegisterInfo();
@@ -60,23 +68,54 @@ namespace llvm {
     }
 
     // Pass Pipeline Configuration
-    virtual bool addInstSelector(PassManagerBase &PM,
-                                 CodeGenOpt::Level OptLevel);
-    virtual bool addPreEmitPass(PassManagerBase &PM,
-                                CodeGenOpt::Level OptLevel);
-    virtual bool addPreRegAlloc(PassManagerBase &PM,
-                                CodeGenOpt::Level OptLevel);
-    virtual bool addPostRegAlloc(PassManagerBase &, CodeGenOpt::Level);
+    virtual bool addInstSelector(PassManagerBase &PM);
+    virtual bool addPreEmitPass(PassManagerBase &PM);
+    virtual bool addPreRegAlloc(PassManagerBase &PM);
+    virtual bool addPostRegAlloc(PassManagerBase &);
+    virtual bool addCodeEmitter(PassManagerBase &PM,
+				 JITCodeEmitter &JCE);
+
   };
 
-/// MipselTargetMachine - Mipsel target machine.
+/// MipsebTargetMachine - Mips32 big endian target machine.
+///
+class MipsebTargetMachine : public MipsTargetMachine {
+public:
+  MipsebTargetMachine(const Target &T, StringRef TT,
+                      StringRef CPU, StringRef FS,
+                      Reloc::Model RM, CodeModel::Model CM,
+                      CodeGenOpt::Level OL);
+};
+
+/// MipselTargetMachine - Mips32 little endian target machine.
 ///
 class MipselTargetMachine : public MipsTargetMachine {
 public:
   MipselTargetMachine(const Target &T, StringRef TT,
-                      StringRef CPU, StringRef FS, Reloc::Model RM);
+                      StringRef CPU, StringRef FS,
+                      Reloc::Model RM, CodeModel::Model CM,
+                      CodeGenOpt::Level OL);
 };
 
+/// Mips64ebTargetMachine - Mips64 big endian target machine.
+///
+class Mips64ebTargetMachine : public MipsTargetMachine {
+public:
+  Mips64ebTargetMachine(const Target &T, StringRef TT,
+                        StringRef CPU, StringRef FS,
+                        Reloc::Model RM, CodeModel::Model CM,
+                        CodeGenOpt::Level OL);
+};
+
+/// Mips64elTargetMachine - Mips64 little endian target machine.
+///
+class Mips64elTargetMachine : public MipsTargetMachine {
+public:
+  Mips64elTargetMachine(const Target &T, StringRef TT,
+                        StringRef CPU, StringRef FS,
+                        Reloc::Model RM, CodeModel::Model CM,
+                        CodeGenOpt::Level OL);
+};
 } // End llvm namespace
 
 #endif

@@ -42,7 +42,9 @@ namespace llvm {
 
   public:
     MBlazeTargetMachine(const Target &T, StringRef TT,
-                        StringRef CPU, StringRef FS, Reloc::Model RM);
+                        StringRef CPU, StringRef FS,
+                        Reloc::Model RM, CodeModel::Model CM,
+                        CodeGenOpt::Level OL);
 
     virtual const MBlazeInstrInfo *getInstrInfo() const
     { return &InstrInfo; }
@@ -76,8 +78,8 @@ namespace llvm {
     }
 
     // Pass Pipeline Configuration
-    virtual bool addInstSelector(PassManagerBase &PM, CodeGenOpt::Level Opt);
-    virtual bool addPreEmitPass(PassManagerBase &PM,CodeGenOpt::Level Opt);
+    virtual bool addInstSelector(PassManagerBase &PM);
+    virtual bool addPreEmitPass(PassManagerBase &PM);
   };
 } // End llvm namespace
 

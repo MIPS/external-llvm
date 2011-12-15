@@ -8,7 +8,7 @@ analysis_SRC_FILES :=	\
 	AliasSetTracker.cpp	\
 	Analysis.cpp	\
 	BasicAliasAnalysis.cpp	\
-	BlockFrequency.cpp \
+	BlockFrequencyInfo.cpp \
 	BranchProbabilityInfo.cpp \
 	CFGPrinter.cpp	\
 	CaptureTracking.cpp	\

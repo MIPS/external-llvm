@@ -17,10 +17,10 @@
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/Target/TargetAsmBackend.h"
+#include "llvm/MC/MCAsmBackend.h"
 using namespace llvm;
 
-MCObjectStreamer::MCObjectStreamer(MCContext &Context, TargetAsmBackend &TAB,
+MCObjectStreamer::MCObjectStreamer(MCContext &Context, MCAsmBackend &TAB,
                                    raw_ostream &OS, MCCodeEmitter *Emitter_)
   : MCStreamer(Context),
     Assembler(new MCAssembler(Context, TAB,
@@ -30,7 +30,7 @@ MCObjectStreamer::MCObjectStreamer(MCContext &Context, TargetAsmBackend &TAB,
 {
 }
 
-MCObjectStreamer::MCObjectStreamer(MCContext &Context, TargetAsmBackend &TAB,
+MCObjectStreamer::MCObjectStreamer(MCContext &Context, MCAsmBackend &TAB,
                                    raw_ostream &OS, MCCodeEmitter *Emitter_,
                                    MCAssembler *_Assembler)
   : MCStreamer(Context), Assembler(_Assembler), CurSectionData(0)
@@ -243,6 +243,16 @@ void MCObjectStreamer::EmitValueToOffset(const MCExpr *Offset,
   if (!Delta->EvaluateAsAbsolute(Res, getAssembler()))
     report_fatal_error("expected assembly-time absolute expression");
   EmitFill(Res, Value, 0);
+}
+
+// Associate GPRel32 fixup with data and resize data area
+void MCObjectStreamer::EmitGPRel32Value(const MCExpr *Value) {
+  MCDataFragment *DF = getOrCreateDataFragment();
+
+  DF->addFixup(MCFixup::Create(DF->getContents().size(),
+                               Value,
+                               FK_GPRel_4));
+  DF->getContents().resize(DF->getContents().size() + 4, 0);
 }
 
 void MCObjectStreamer::Finish() {

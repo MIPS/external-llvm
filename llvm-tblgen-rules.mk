@@ -33,20 +33,33 @@ endif
 #
 ifeq ($(tblgen_source_dir),$(LLVM_ROOT_PATH)/lib/Target/ARM/MCTargetDesc)
 $(intermediates)/%GenRegisterInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
-	$(call transform-td-to-out, register-info)
+	$(call transform-td-to-out,register-info)
+$(intermediates)/%GenInstrInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
+	$(call transform-td-to-out,instr-info)
+$(intermediates)/%GenSubtargetInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
+	$(call transform-td-to-out,subtarget)
+$(intermediates)/%GenMCCodeEmitter.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
+	$(call transform-td-to-out,emitter -mc-emitter)
+endif
+
+ifeq ($(tblgen_source_dir),$(LLVM_ROOT_PATH)/lib/Target/X86/MCTargetDesc)
+$(intermediates)/%GenRegisterInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
+	$(call transform-td-to-out,register-info)
 $(intermediates)/%GenInstrInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
 	$(call transform-td-to-out,instr-info)
 $(intermediates)/%GenSubtargetInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
 	$(call transform-td-to-out,subtarget)
 endif
 
-ifeq ($(tblgen_source_dir),$(LLVM_ROOT_PATH)/lib/Target/X86/MCTargetDesc)
+ifeq ($(tblgen_source_dir),$(LLVM_ROOT_PATH)/lib/Target/Mips/MCTargetDesc)
 $(intermediates)/%GenRegisterInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
-	$(call transform-td-to-out, register-info)
+	$(call transform-td-to-out,register-info)
 $(intermediates)/%GenInstrInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
 	$(call transform-td-to-out,instr-info)
 $(intermediates)/%GenSubtargetInfo.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
 	$(call transform-td-to-out,subtarget)
+$(intermediates)/%GenMCCodeEmitter.inc: $(tblgen_source_dir)/../%.td $(TBLGEN)
+	$(call transform-td-to-out,emitter -mc-emitter)
 endif
 
 

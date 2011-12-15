@@ -13,9 +13,6 @@
 
 #include "llvm/Support/Atomic.h"
 #include "llvm/Config/config.h"
-#if defined(ANDROID_TARGET_BUILD)
-#  include "sys/atomics.h"
-#endif
 
 using namespace llvm;
 
@@ -25,7 +22,7 @@ using namespace llvm;
 #endif
 
 void sys::MemoryFence() {
-#if LLVM_MULTITHREADED==0
+#if LLVM_HAS_ATOMICS == 0
   return;
 #else
 #  if defined(__GNUC__)
@@ -41,13 +38,11 @@ void sys::MemoryFence() {
 sys::cas_flag sys::CompareAndSwap(volatile sys::cas_flag* ptr,
                                   sys::cas_flag new_value,
                                   sys::cas_flag old_value) {
-#if LLVM_MULTITHREADED==0
+#if LLVM_HAS_ATOMICS == 0
   sys::cas_flag result = *ptr;
   if (result == old_value)
     *ptr = new_value;
   return result;
-#elif defined(ANDROID_TARGET_BUILD)
-  return __atomic_cmpxchg(old_value, new_value, (volatile int*)ptr);
 #elif defined(__GNUC__)
   return __sync_val_compare_and_swap(ptr, old_value, new_value);
 #elif defined(_MSC_VER)
@@ -58,11 +53,9 @@ sys::cas_flag sys::CompareAndSwap(volatile sys::cas_flag* ptr,
 }
 
 sys::cas_flag sys::AtomicIncrement(volatile sys::cas_flag* ptr) {
-#if LLVM_MULTITHREADED==0
+#if LLVM_HAS_ATOMICS == 0
   ++(*ptr);
   return *ptr;
-#elif defined(ANDROID_TARGET_BUILD)
-  return __atomic_inc((volatile int*)ptr);
 #elif defined(__GNUC__)
   return __sync_add_and_fetch(ptr, 1);
 #elif defined(_MSC_VER)
@@ -73,11 +66,9 @@ sys::cas_flag sys::AtomicIncrement(volatile sys::cas_flag* ptr) {
 }
 
 sys::cas_flag sys::AtomicDecrement(volatile sys::cas_flag* ptr) {
-#if LLVM_MULTITHREADED==0
+#if LLVM_HAS_ATOMICS == 0
   --(*ptr);
   return *ptr;
-#elif defined(ANDROID_TARGET_BUILD)
-  return __atomic_dec((volatile int*)ptr);
 #elif defined(__GNUC__)
   return __sync_sub_and_fetch(ptr, 1);
 #elif defined(_MSC_VER)
@@ -88,16 +79,9 @@ sys::cas_flag sys::AtomicDecrement(volatile sys::cas_flag* ptr) {
 }
 
 sys::cas_flag sys::AtomicAdd(volatile sys::cas_flag* ptr, sys::cas_flag val) {
-#if LLVM_MULTITHREADED==0
+#if LLVM_HAS_ATOMICS == 0
   *ptr += val;
   return *ptr;
-#elif defined(ANDROID_TARGET_BUILD)
-  sys::cas_flag original, result;
-  do {
-    original = *ptr;
-    result = original + val;
-  } while (__atomic_cmpxchg(original, result, (volatile int*)ptr) != original);
-  return result;
 #elif defined(__GNUC__)
   return __sync_add_and_fetch(ptr, val);
 #elif defined(_MSC_VER)

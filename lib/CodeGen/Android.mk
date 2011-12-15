@@ -7,6 +7,7 @@ codegen_SRC_FILES :=   \
 	BranchFolding.cpp   \
 	CalcSpillWeights.cpp    \
 	CallingConvLower.cpp	\
+	CodeGen.cpp \
 	CodePlacementOpt.cpp    \
 	CriticalAntiDepBreaker.cpp  \
 	DeadMachineInstructionElim.cpp  \
@@ -14,6 +15,8 @@ codegen_SRC_FILES :=   \
 	EdgeBundles.cpp \
 	ELFCodeEmitter.cpp  \
 	ELFWriter.cpp   \
+	ExecutionDepsFix.cpp \
+	ExpandPostRAPseudos.cpp \
 	ExpandISelPseudos.cpp \
 	GCMetadata.cpp  \
 	GCMetadataPrinter.cpp   \
@@ -24,16 +27,19 @@ codegen_SRC_FILES :=   \
 	IntrinsicLowering.cpp   \
 	LLVMTargetMachine.cpp   \
 	LatencyPriorityQueue.cpp    \
+	LexicalScopes.cpp \
 	LiveDebugVariables.cpp \
 	LiveInterval.cpp    \
 	LiveIntervalUnion.cpp \
 	LiveIntervalAnalysis.cpp    \
+	LiveRangeCalc.cpp \
 	LiveRangeEdit.cpp \
 	LiveStackAnalysis.cpp   \
 	LiveVariables.cpp   \
 	LocalStackSlotAllocation.cpp	\
-	LowerSubregs.cpp    \
 	MachineBasicBlock.cpp   \
+	MachineBlockFrequencyInfo.cpp \
+	MachineBlockPlacement.cpp \
 	MachineBranchProbabilityInfo.cpp \
 	MachineCSE.cpp  \
 	MachineDominators.cpp   \
@@ -41,7 +47,6 @@ codegen_SRC_FILES :=   \
 	MachineFunctionAnalysis.cpp \
 	MachineFunctionPass.cpp \
 	MachineFunctionPrinterPass.cpp  \
-	MachineBlockFrequency.cpp \
 	MachineInstr.cpp    \
 	MachineLICM.cpp \
 	MachineLoopInfo.cpp \
@@ -67,7 +72,6 @@ codegen_SRC_FILES :=   \
 	RegAllocBasic.cpp \
 	RegAllocFast.cpp	\
 	RegAllocGreedy.cpp \
-	RegAllocLinearScan.cpp  \
 	RegAllocPBQP.cpp    \
 	RegisterCoalescer.cpp   \
 	RegisterClassInfo.cpp \
@@ -94,8 +98,7 @@ codegen_SRC_FILES :=   \
 	TargetLoweringObjectFileImpl.cpp    \
 	TwoAddressInstructionPass.cpp   \
 	UnreachableBlockElim.cpp    \
-	VirtRegMap.cpp  \
-	VirtRegRewriter.cpp
+	VirtRegMap.cpp
 
 # For the host
 # =====================================================

@@ -297,8 +297,22 @@ void MachineBasicBlock::updateTerminator() {
         TII->RemoveBranch(*this);
     } else {
       // The block has an unconditional fallthrough. If its successor is not
-      // its layout successor, insert a branch.
-      TBB = *succ_begin();
+      // its layout successor, insert a branch. First we have to locate the
+      // only non-landing-pad successor, as that is the fallthrough block.
+      for (succ_iterator SI = succ_begin(), SE = succ_end(); SI != SE; ++SI) {
+        if ((*SI)->isLandingPad())
+          continue;
+        assert(!TBB && "Found more than one non-landing-pad successor!");
+        TBB = *SI;
+      }
+
+      // If there is no non-landing-pad successor, the block has no
+      // fall-through edges to be concerned with.
+      if (!TBB)
+        return;
+
+      // Finally update the unconditional successor to be reached via a branch
+      // if it would not be reached by fallthrough.
       if (!isLayoutSuccessor(TBB))
         TII->InsertBranch(*this, TBB, 0, Cond, dl);
     }
@@ -570,6 +584,11 @@ MachineBasicBlock::SplitCriticalEdge(MachineBasicBlock *Succ, Pass *P) {
     for (unsigned ni = 1, ne = i->getNumOperands(); ni != ne; ni += 2)
       if (i->getOperand(ni+1).getMBB() == this)
         i->getOperand(ni+1).setMBB(NMBB);
+
+  // Inherit live-ins from the successor
+  for (MachineBasicBlock::livein_iterator I = Succ->livein_begin(),
+	 E = Succ->livein_end(); I != E; ++I)
+    NMBB->addLiveIn(*I);
 
   // Update LiveVariables.
   if (LV) {

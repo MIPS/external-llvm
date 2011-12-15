@@ -13,7 +13,9 @@ add_llvm_library(LLVMCodeGen
   EdgeBundles.cpp
   ELFCodeEmitter.cpp
   ELFWriter.cpp
+  ExecutionDepsFix.cpp
   ExpandISelPseudos.cpp
+  ExpandPostRAPseudos.cpp
   GCMetadata.cpp
   GCMetadataPrinter.cpp
   GCStrategy.cpp
@@ -23,17 +25,19 @@ add_llvm_library(LLVMCodeGen
   IntrinsicLowering.cpp
   LLVMTargetMachine.cpp
   LatencyPriorityQueue.cpp
+  LexicalScopes.cpp
   LiveDebugVariables.cpp
   LiveInterval.cpp
   LiveIntervalAnalysis.cpp
   LiveIntervalUnion.cpp
   LiveStackAnalysis.cpp
   LiveVariables.cpp
+  LiveRangeCalc.cpp
   LiveRangeEdit.cpp
   LocalStackSlotAllocation.cpp
-  LowerSubregs.cpp
   MachineBasicBlock.cpp
-  MachineBlockFrequency.cpp
+  MachineBlockFrequencyInfo.cpp
+  MachineBlockPlacement.cpp
   MachineBranchProbabilityInfo.cpp
   MachineCSE.cpp
   MachineDominators.cpp
@@ -66,7 +70,6 @@ add_llvm_library(LLVMCodeGen
   RegAllocBasic.cpp
   RegAllocFast.cpp
   RegAllocGreedy.cpp
-  RegAllocLinearScan.cpp
   RegAllocPBQP.cpp
   RegisterClassInfo.cpp
   RegisterCoalescer.cpp
@@ -94,7 +97,16 @@ add_llvm_library(LLVMCodeGen
   TwoAddressInstructionPass.cpp
   UnreachableBlockElim.cpp
   VirtRegMap.cpp
-  VirtRegRewriter.cpp
+  )
+
+add_llvm_library_dependencies(LLVMCodeGen
+  LLVMAnalysis
+  LLVMCore
+  LLVMMC
+  LLVMScalarOpts
+  LLVMSupport
+  LLVMTarget
+  LLVMTransformUtils
   )
 
 add_subdirectory(SelectionDAG)

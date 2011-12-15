@@ -82,7 +82,7 @@ entry:
   ret i64 %mul
 
 ; CHECK: test6:
-; CHECK: leaq	(,%rdi,8), %rax
+; CHECK: shlq	$3, %rdi
 }
 
 define i32 @test7(i32 %x) nounwind ssp {
@@ -90,7 +90,7 @@ entry:
   %mul = mul nsw i32 %x, 8
   ret i32 %mul
 ; CHECK: test7:
-; CHECK: leal	(,%rdi,8), %eax
+; CHECK: shll	$3, %edi
 }
 
 
@@ -260,3 +260,26 @@ define void @test21(double* %p1) {
 ; CHECK-NOT: pxor
 ; CHECK: movsd	LCPI
 }
+
+; Check that immediate arguments to a function
+; do not cause massive spilling and are used
+; as immediates just before the call.
+define void @test22() nounwind {
+entry:
+  call void @foo22(i32 0)
+  call void @foo22(i32 1)
+  call void @foo22(i32 2)
+  call void @foo22(i32 3)
+  ret void
+; CHECK: test22:
+; CHECK: movl	$0, %edi
+; CHECK: callq	_foo22
+; CHECK: movl	$1, %edi
+; CHECK: callq	_foo22
+; CHECK: movl	$2, %edi
+; CHECK: callq	_foo22
+; CHECK: movl	$3, %edi
+; CHECK: callq	_foo22
+}
+
+declare void @foo22(i32)
