@@ -33,6 +33,10 @@ subdirs := $(addprefix $(LOCAL_PATH)/,$(addsuffix /Android.mk, \
   lib/Target/X86/MCTargetDesc \
   lib/Target/X86/TargetInfo \
   lib/Target/X86/Utils \
+  lib/Target/Mips \
+  lib/Target/Mips/InstPrinter \
+  lib/Target/Mips/MCTargetDesc \
+  lib/Target/Mips/TargetInfo \
   lib/Transforms/IPO \
   lib/Transforms/InstCombine \
   lib/Transforms/Instrumentation \
