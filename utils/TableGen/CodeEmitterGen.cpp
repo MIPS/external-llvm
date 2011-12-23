@@ -262,14 +262,11 @@ void CodeEmitterGen::run(raw_ostream &o) {
         IC != EC; ++IC) {
     Record *R = *IC;
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
-        (R->getValueAsBit("isPseudo") && MCEmitter))
+        R->getValueAsBit("isPseudo"))
       continue;
     const std::string &InstName = R->getValueAsString("Namespace") + "::"
       + R->getName();
-    std::string Case;
-    if (!R->getValueAsBit("isPseudo")) {
-      Case = getInstructionCase(R, Target);
-    }
+    std::string Case = getInstructionCase(R, Target);
 
     CaseMap[Case].push_back(InstName);
   }

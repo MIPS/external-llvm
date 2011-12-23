@@ -38,8 +38,7 @@ class SystemZTargetMachine : public LLVMTargetMachine {
   SystemZFrameLowering    FrameLowering;
 public:
   SystemZTargetMachine(const Target &T, StringRef TT,
-                       StringRef CPU, StringRef FS,
-                       Reloc::Model RM, CodeModel::Model CM);
+                       StringRef CPU, StringRef FS, Reloc::Model RM);
 
   virtual const TargetFrameLowering *getFrameLowering() const {
     return &FrameLowering;

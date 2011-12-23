@@ -14,7 +14,7 @@
 #include "AlphaTargetMachine.h"
 #include "llvm/PassManager.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Target/TargetRegistry.h"
 using namespace llvm;
 
 extern "C" void LLVMInitializeAlphaTarget() { 
@@ -23,9 +23,9 @@ extern "C" void LLVMInitializeAlphaTarget() {
 }
 
 AlphaTargetMachine::AlphaTargetMachine(const Target &T, StringRef TT,
-                                       StringRef CPU, StringRef FS,
-                                       Reloc::Model RM, CodeModel::Model CM)
-  : LLVMTargetMachine(T, TT, CPU, FS, RM, CM),
+                                       StringRef CPU,
+                                       StringRef FS, Reloc::Model RM)
+  : LLVMTargetMachine(T, TT, CPU, FS, RM),
     DataLayout("e-f128:128:128-n64"),
     FrameLowering(Subtarget),
     Subtarget(TT, CPU, FS),

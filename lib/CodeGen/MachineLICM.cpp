@@ -45,7 +45,7 @@ using namespace llvm;
 static cl::opt<bool>
 AvoidSpeculation("avoid-speculation",
                  cl::desc("MachineLICM should avoid speculation"),
-                 cl::init(false), cl::Hidden);
+                 cl::init(true), cl::Hidden);
 
 STATISTIC(NumHoisted,
           "Number of machine instructions hoisted out of loops");
@@ -670,7 +670,7 @@ MachineLICM::getRegisterClassIDAndCost(const MachineInstr *MI,
                                        unsigned &RCId, unsigned &RCCost) const {
   const TargetRegisterClass *RC = MRI->getRegClass(Reg);
   EVT VT = *RC->vt_begin();
-  if (VT == MVT::untyped) {
+  if (VT == MVT::Untyped) {
     RCId = RC->getID();
     RCCost = 1;
   } else {
@@ -762,15 +762,15 @@ void MachineLICM::UpdateRegPressure(const MachineInstr *MI) {
   }
 }
 
-/// isLoadFromGOT - Return true if this machine instruction loads from
-/// global offset table.
-static bool isLoadFromGOT(MachineInstr &MI) {
+/// isLoadFromGOTOrConstantPool - Return true if this machine instruction 
+/// loads from global offset table or constant pool.
+static bool isLoadFromGOTOrConstantPool(MachineInstr &MI) {
   assert (MI.getDesc().mayLoad() && "Expected MI that loads!");
   for (MachineInstr::mmo_iterator I = MI.memoperands_begin(),
 	 E = MI.memoperands_end(); I != E; ++I) {
     if (const Value *V = (*I)->getValue()) {
       if (const PseudoSourceValue *PSV = dyn_cast<PseudoSourceValue>(V))
-        if (PSV == PSV->getGOT())
+        if (PSV == PSV->getGOT() || PSV == PSV->getConstantPool())
 	  return true;
     }
   }
@@ -788,9 +788,11 @@ bool MachineLICM::IsLICMCandidate(MachineInstr &I) {
 
   // If it is load then check if it is guaranteed to execute by making sure that
   // it dominates all exiting blocks. If it doesn't, then there is a path out of
-  // the loop which does not execute this load, so we can't hoist it.
+  // the loop which does not execute this load, so we can't hoist it. Loads
+  // from constant memory are not safe to speculate all the time, for example
+  // indexed load from a jump table.
   // Stores and side effects are already checked by isSafeToMove.
-  if (I.getDesc().mayLoad() && !isLoadFromGOT(I) && 
+  if (I.getDesc().mayLoad() && !isLoadFromGOTOrConstantPool(I) && 
       !IsGuaranteedToExecute(I.getParent()))
     return false;
 

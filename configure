@@ -682,6 +682,7 @@ BUILD_CC
 BUILD_EXEEXT
 BUILD_CXX
 CVSBUILD
+ENABLE_LIBCPP
 ENABLE_OPTIMIZED
 ENABLE_PROFILING
 DISABLE_ASSERTIONS
@@ -1389,6 +1390,7 @@ Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-polly          Use polly if available (default is YES)
+  --enable-libcpp         Use libc++ if available (default is NO)
   --enable-optimized      Compile with optimizations enabled (default is NO)
   --enable-profiling      Compile with profiling enabled (default is NO)
   --enable-assertions     Compile with assertion checks enabled (default is
@@ -1415,9 +1417,8 @@ Optional Features:
                           (default is YES)
   --enable-targets        Build specific host targets: all or
                           target1,target2,... Valid targets are: host, x86,
-                          x86_64, sparc, powerpc, alpha, arm, mips, spu,
-                          xcore, msp430, systemz, blackfin, ptx, cbe, and cpp
-                          (default=all)
+                          x86_64, sparc, powerpc, arm, mips, spu, xcore,
+                          msp430, ptx, cbe, and cpp (default=all)
   --enable-cbe-printf-a   Enable C Backend output with hex floating point via
                           %a (default is YES)
   --enable-bindings       Build specific language bindings:
@@ -3875,13 +3876,10 @@ else
   amd64-* | x86_64-*)     llvm_cv_target_arch="x86_64" ;;
   sparc*-*)               llvm_cv_target_arch="Sparc" ;;
   powerpc*-*)             llvm_cv_target_arch="PowerPC" ;;
-  alpha*-*)               llvm_cv_target_arch="Alpha" ;;
   arm*-*)                 llvm_cv_target_arch="ARM" ;;
   mips-*)                 llvm_cv_target_arch="Mips" ;;
   xcore-*)                llvm_cv_target_arch="XCore" ;;
   msp430-*)               llvm_cv_target_arch="MSP430" ;;
-  s390x-*)                llvm_cv_target_arch="SystemZ" ;;
-  bfin-*)                 llvm_cv_target_arch="Blackfin" ;;
   mblaze-*)               llvm_cv_target_arch="MBlaze" ;;
   ptx-*)                  llvm_cv_target_arch="PTX" ;;
   *)                      llvm_cv_target_arch="Unknown" ;;
@@ -4960,6 +4958,25 @@ else
 fi
 
 
+# Check whether --enable-libcpp was given.
+if test "${enable_libcpp+set}" = set; then
+  enableval=$enable_libcpp;
+else
+  enableval=default
+fi
+
+case "$enableval" in
+  yes) ENABLE_LIBCPP=1
+ ;;
+  no)  ENABLE_LIBCPP=0
+ ;;
+  default) ENABLE_LIBCPP=0
+;;
+  *) { { echo "$as_me:$LINENO: error: Invalid setting for --enable-libcpp. Use \"yes\" or \"no\"" >&5
+echo "$as_me: error: Invalid setting for --enable-libcpp. Use \"yes\" or \"no\"" >&2;}
+   { (exit 1); exit 1; }; } ;;
+esac
+
 # Check whether --enable-optimized was given.
 if test "${enable_optimized+set}" = set; then
   enableval=$enable_optimized;
@@ -5075,8 +5092,6 @@ else
  ;;
     x86_64)      TARGET_HAS_JIT=1
  ;;
-    Alpha)       TARGET_HAS_JIT=0
- ;;
     ARM)         TARGET_HAS_JIT=1
  ;;
     Mips)        TARGET_HAS_JIT=1
@@ -5084,10 +5099,6 @@ else
     XCore)       TARGET_HAS_JIT=0
  ;;
     MSP430)      TARGET_HAS_JIT=0
- ;;
-    SystemZ)     TARGET_HAS_JIT=0
- ;;
-    Blackfin)    TARGET_HAS_JIT=0
  ;;
     MBlaze)      TARGET_HAS_JIT=0
  ;;
@@ -5277,21 +5288,18 @@ if test "$enableval" = host-only ; then
   enableval=host
 fi
 case "$enableval" in
-  all) TARGETS_TO_BUILD="X86 Sparc PowerPC Alpha ARM Mips CellSPU XCore MSP430 SystemZ Blackfin CBackend CppBackend MBlaze PTX" ;;
+  all) TARGETS_TO_BUILD="X86 Sparc PowerPC ARM Mips CellSPU XCore MSP430 CBackend CppBackend MBlaze PTX" ;;
   *)for a_target in `echo $enableval|sed -e 's/,/ /g' ` ; do
       case "$a_target" in
         x86)      TARGETS_TO_BUILD="X86 $TARGETS_TO_BUILD" ;;
         x86_64)   TARGETS_TO_BUILD="X86 $TARGETS_TO_BUILD" ;;
         sparc)    TARGETS_TO_BUILD="Sparc $TARGETS_TO_BUILD" ;;
         powerpc)  TARGETS_TO_BUILD="PowerPC $TARGETS_TO_BUILD" ;;
-        alpha)    TARGETS_TO_BUILD="Alpha $TARGETS_TO_BUILD" ;;
         arm)      TARGETS_TO_BUILD="ARM $TARGETS_TO_BUILD" ;;
         mips)     TARGETS_TO_BUILD="Mips $TARGETS_TO_BUILD" ;;
         spu)      TARGETS_TO_BUILD="CellSPU $TARGETS_TO_BUILD" ;;
         xcore)    TARGETS_TO_BUILD="XCore $TARGETS_TO_BUILD" ;;
         msp430)   TARGETS_TO_BUILD="MSP430 $TARGETS_TO_BUILD" ;;
-        systemz)  TARGETS_TO_BUILD="SystemZ $TARGETS_TO_BUILD" ;;
-        blackfin) TARGETS_TO_BUILD="Blackfin $TARGETS_TO_BUILD" ;;
         cbe)      TARGETS_TO_BUILD="CBackend $TARGETS_TO_BUILD" ;;
         cpp)      TARGETS_TO_BUILD="CppBackend $TARGETS_TO_BUILD" ;;
         mblaze)   TARGETS_TO_BUILD="MBlaze $TARGETS_TO_BUILD" ;;
@@ -5301,15 +5309,12 @@ case "$enableval" in
             x86_64)      TARGETS_TO_BUILD="X86 $TARGETS_TO_BUILD" ;;
             Sparc)       TARGETS_TO_BUILD="Sparc $TARGETS_TO_BUILD" ;;
             PowerPC)     TARGETS_TO_BUILD="PowerPC $TARGETS_TO_BUILD" ;;
-            Alpha)       TARGETS_TO_BUILD="Alpha $TARGETS_TO_BUILD" ;;
             ARM)         TARGETS_TO_BUILD="ARM $TARGETS_TO_BUILD" ;;
             Mips)        TARGETS_TO_BUILD="Mips $TARGETS_TO_BUILD" ;;
             MBlaze)      TARGETS_TO_BUILD="MBlaze $TARGETS_TO_BUILD" ;;
             CellSPU|SPU) TARGETS_TO_BUILD="CellSPU $TARGETS_TO_BUILD" ;;
             XCore)       TARGETS_TO_BUILD="XCore $TARGETS_TO_BUILD" ;;
             MSP430)      TARGETS_TO_BUILD="MSP430 $TARGETS_TO_BUILD" ;;
-            s390x)       TARGETS_TO_BUILD="SystemZ $TARGETS_TO_BUILD" ;;
-            Blackfin)    TARGETS_TO_BUILD="Blackfin $TARGETS_TO_BUILD" ;;
             PTX)         TARGETS_TO_BUILD="PTX $TARGETS_TO_BUILD" ;;
             *)       { { echo "$as_me:$LINENO: error: Can not set target to build" >&5
 echo "$as_me: error: Can not set target to build" >&2;}
@@ -8916,7 +8921,7 @@ dgux*)
   shlibpath_var=LD_LIBRARY_PATH
   ;;
 
-freebsd1*)
+freebsd1.*)
   dynamic_linker=no
   ;;
 
@@ -8939,7 +8944,7 @@ freebsd* | dragonfly*)
     objformat=`/usr/bin/objformat`
   else
     case $host_os in
-    freebsd[123]*) objformat=aout ;;
+    freebsd[123].*) objformat=aout ;;
     *) objformat=elf ;;
     esac
   fi
@@ -8957,7 +8962,7 @@ freebsd* | dragonfly*)
   esac
   shlibpath_var=LD_LIBRARY_PATH
   case $host_os in
-  freebsd2*)
+  freebsd2.*)
     shlibpath_overrides_runpath=yes
     ;;
   freebsd3.[01]* | freebsdelf3.[01]*)
@@ -10471,7 +10476,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 10474 "configure"
+#line 10479 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -17146,7 +17151,8 @@ done
 
 
 
-for ac_func in mktemp posix_spawn realpath sbrk setrlimit strdup
+
+for ac_func in mktemp posix_spawn pread realpath sbrk setrlimit strdup
 do
 as_ac_var=`echo "ac_cv_func_$ac_func" | $as_tr_sh`
 { echo "$as_me:$LINENO: checking for $ac_func" >&5
@@ -20881,7 +20887,7 @@ _ACEOF
 
 
 cat >>confdefs.h <<_ACEOF
-#define LLVM_HOSTTRIPLE "$host"
+#define LLVM_DEFAULT_TARGET_TRIPLE "$target"
 _ACEOF
 
 
@@ -21070,6 +21076,7 @@ ac_config_headers="$ac_config_headers include/llvm/Support/DataTypes.h"
 
 ac_config_files="$ac_config_files Makefile.config"
 
+
 ac_config_files="$ac_config_files llvm.spec"
 
 
@@ -21082,7 +21089,9 @@ fi
 
 ac_config_files="$ac_config_files tools/llvm-config/llvm-config.in"
 
+
 ac_config_files="$ac_config_files bindings/ocaml/llvm/META.llvm"
+
 
 ac_config_commands="$ac_config_commands setup"
 
@@ -21701,6 +21710,7 @@ do
     "docs/doxygen.cfg") CONFIG_FILES="$CONFIG_FILES docs/doxygen.cfg" ;;
     "tools/clang/docs/doxygen.cfg") CONFIG_FILES="$CONFIG_FILES tools/clang/docs/doxygen.cfg" ;;
     "tools/llvm-config/llvm-config.in") CONFIG_FILES="$CONFIG_FILES tools/llvm-config/llvm-config.in" ;;
+    "bindings/ocaml/llvm/META.llvm") CONFIG_FILES="$CONFIG_FILES bindings/ocaml/llvm/META.llvm" ;;
     "setup") CONFIG_COMMANDS="$CONFIG_COMMANDS setup" ;;
     "Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS Makefile" ;;
     "Makefile.common") CONFIG_COMMANDS="$CONFIG_COMMANDS Makefile.common" ;;
@@ -21857,6 +21867,7 @@ BUILD_CC!$BUILD_CC$ac_delim
 BUILD_EXEEXT!$BUILD_EXEEXT$ac_delim
 BUILD_CXX!$BUILD_CXX$ac_delim
 CVSBUILD!$CVSBUILD$ac_delim
+ENABLE_LIBCPP!$ENABLE_LIBCPP$ac_delim
 ENABLE_OPTIMIZED!$ENABLE_OPTIMIZED$ac_delim
 ENABLE_PROFILING!$ENABLE_PROFILING$ac_delim
 DISABLE_ASSERTIONS!$DISABLE_ASSERTIONS$ac_delim
@@ -21873,7 +21884,6 @@ ENABLE_PTHREADS!$ENABLE_PTHREADS$ac_delim
 ENABLE_PIC!$ENABLE_PIC$ac_delim
 ENABLE_SHARED!$ENABLE_SHARED$ac_delim
 ENABLE_EMBED_STDCXX!$ENABLE_EMBED_STDCXX$ac_delim
-ENABLE_TIMESTAMPS!$ENABLE_TIMESTAMPS$ac_delim
 _ACEOF
 
   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
@@ -21915,6 +21925,7 @@ _ACEOF
 ac_delim='%!_!# '
 for ac_last_try in false false false false false :; do
   cat >conf$$subs.sed <<_ACEOF
+ENABLE_TIMESTAMPS!$ENABLE_TIMESTAMPS$ac_delim
 TARGETS_TO_BUILD!$TARGETS_TO_BUILD$ac_delim
 LLVM_ENUM_TARGETS!$LLVM_ENUM_TARGETS$ac_delim
 LLVM_ENUM_ASM_PRINTERS!$LLVM_ENUM_ASM_PRINTERS$ac_delim
@@ -22006,7 +22017,7 @@ LIBOBJS!$LIBOBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 89; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 90; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

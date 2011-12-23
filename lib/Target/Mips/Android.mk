@@ -26,8 +26,7 @@ mips_codegen_SRC_FILES :=	\
 	MipsRegisterInfo.cpp \
 	MipsTargetObjectFile.cpp \
 	MipsJITInfo.cpp \
-	MipsMCInstLower.cpp \
-	MipsMCSymbolRefExpr.cpp
+	MipsMCInstLower.cpp
 
 # For the host
 # =====================================================

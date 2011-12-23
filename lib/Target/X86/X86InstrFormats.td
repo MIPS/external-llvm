@@ -109,6 +109,7 @@ class A6     { bits<5> Prefix = 15; }
 class A7     { bits<5> Prefix = 16; }
 class T8XD   { bits<5> Prefix = 17; }
 class T8XS   { bits<5> Prefix = 18; }
+class TAXD   { bits<5> Prefix = 19; }
 class VEX    { bit hasVEXPrefix = 1; }
 class VEX_W  { bit hasVEX_WPrefix = 1; }
 class VEX_4V : VEX { bit hasVEX_4VPrefix = 1; }
@@ -449,6 +450,20 @@ class AVXAIi8<bits<8> o, Format F, dag outs, dag ins, string asm,
               list<dag> pattern>
       : Ii8<o, F, outs, ins, asm, pattern, SSEPackedInt>, TA, OpSize,
         Requires<[HasAVX]>;
+
+// AVX2 Instruction Templates:
+//   Instructions introduced in AVX2 (no SSE equivalent forms)
+//
+//   AVX28I - AVX2 instructions with T8 and OpSize prefix.
+//   AVX2AIi8 - AVX2 instructions with TA, OpSize prefix and ImmT = Imm8.
+class AVX28I<bits<8> o, Format F, dag outs, dag ins, string asm,
+            list<dag> pattern>
+      : I<o, F, outs, ins, asm, pattern, SSEPackedInt>, T8, OpSize,
+        Requires<[HasAVX2]>;
+class AVX2AIi8<bits<8> o, Format F, dag outs, dag ins, string asm,
+              list<dag> pattern>
+      : Ii8<o, F, outs, ins, asm, pattern, SSEPackedInt>, TA, OpSize,
+        Requires<[HasAVX2]>;
 
 // AES Instruction Templates:
 //

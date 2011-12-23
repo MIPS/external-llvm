@@ -58,8 +58,6 @@ def SDT_ARMEH_SJLJ_Setjmp : SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisPtrTy<1>,
                                                  SDTCisInt<2>]>;
 def SDT_ARMEH_SJLJ_Longjmp: SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisInt<1>]>;
 
-def SDT_ARMEH_SJLJ_DispatchSetup: SDTypeProfile<0, 1, [SDTCisInt<0>]>;
-
 def SDT_ARMMEMBARRIER     : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
 
 def SDT_ARMPREFETCH : SDTypeProfile<0, 3, [SDTCisPtrTy<0>, SDTCisSameAs<1, 2>,
@@ -143,9 +141,6 @@ def ARMeh_sjlj_setjmp: SDNode<"ARMISD::EH_SJLJ_SETJMP",
                                SDT_ARMEH_SJLJ_Setjmp, [SDNPHasChain]>;
 def ARMeh_sjlj_longjmp: SDNode<"ARMISD::EH_SJLJ_LONGJMP",
                                SDT_ARMEH_SJLJ_Longjmp, [SDNPHasChain]>;
-def ARMeh_sjlj_dispatchsetup: SDNode<"ARMISD::EH_SJLJ_DISPATCHSETUP",
-                               SDT_ARMEH_SJLJ_DispatchSetup, [SDNPHasChain]>;
-
 
 def ARMMemBarrier     : SDNode<"ARMISD::MEMBARRIER", SDT_ARMMEMBARRIER,
                                [SDNPHasChain]>;
@@ -258,10 +253,16 @@ def so_imm_neg :
     return ARM_AM::getSOImmVal(-(uint32_t)N->getZExtValue()) != -1;
   }], so_imm_neg_XFORM>;
 
+// Note: this pattern doesn't require an encoder method and such, as it's
+// only used on aliases (Pat<> and InstAlias<>). The actual encoding
+// is handled by the destination instructions, which use t2_so_imm.
+def so_imm_not_asmoperand : AsmOperandClass { let Name = "ARMSOImmNot"; }
 def so_imm_not :
-  PatLeaf<(imm), [{
+  Operand<i32>, PatLeaf<(imm), [{
     return ARM_AM::getSOImmVal(~(uint32_t)N->getZExtValue()) != -1;
-  }], so_imm_not_XFORM>;
+  }], so_imm_not_XFORM> {
+  let ParserMatchClass = so_imm_not_asmoperand;
+}
 
 // sext_16_node predicate - True if the SDNode is sign-extended 16 or more bits.
 def sext_16_node : PatLeaf<(i32 GPR:$a), [{
@@ -277,14 +278,6 @@ def lo16AllZero : PatLeaf<(i32 imm), [{
   // Returns true if all low 16-bits are 0.
   return (((uint32_t)N->getZExtValue()) & 0xFFFFUL) == 0;
 }], hi16>;
-
-/// imm0_65535 - An immediate is in the range [0.65535].
-def Imm0_65535AsmOperand: AsmOperandClass { let Name = "Imm0_65535"; }
-def imm0_65535 : Operand<i32>, ImmLeaf<i32, [{
-  return Imm >= 0 && Imm < 65536;
-}]> {
-  let ParserMatchClass = Imm0_65535AsmOperand;
-}
 
 class BinOpWithFlagFrag<dag res> :
       PatFrag<(ops node:$LHS, node:$RHS, node:$FLAG), res>;
@@ -319,6 +312,9 @@ def fsub_mlx : PatFrag<(ops node:$lhs, node:$rhs),(fsub node:$lhs, node:$rhs),[{
 //===----------------------------------------------------------------------===//
 // Operand Definitions.
 //
+
+// Immediate operands with a shared generic asm render method.
+class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 
 // Branch target.
 // FIXME: rename brtarget to t2_brtarget
@@ -474,6 +470,7 @@ def shift_so_reg_reg : Operand<i32>,    // reg reg imm
   let EncoderMethod = "getSORegRegOpValue";
   let PrintMethod = "printSORegRegOperand";
   let DecoderMethod = "DecodeSORegRegOperand";
+  let ParserMatchClass = ShiftedRegAsmOperand;
   let MIOperandInfo = (ops GPR, GPR, i32imm);
 }
 
@@ -484,13 +481,14 @@ def shift_so_reg_imm : Operand<i32>,    // reg reg imm
   let EncoderMethod = "getSORegImmOpValue";
   let PrintMethod = "printSORegImmOperand";
   let DecoderMethod = "DecodeSORegImmOperand";
+  let ParserMatchClass = ShiftedImmAsmOperand;
   let MIOperandInfo = (ops GPR, i32imm);
 }
 
 
 // so_imm - Match a 32-bit shifter_operand immediate operand, which is an
 // 8-bit immediate rotated by an arbitrary number of bits.
-def SOImmAsmOperand: AsmOperandClass { let Name = "ARMSOImm"; }
+def SOImmAsmOperand: ImmAsmOperand { let Name = "ARMSOImm"; }
 def so_imm : Operand<i32>, ImmLeaf<i32, [{
     return ARM_AM::getSOImmVal(Imm) != -1;
   }]> {
@@ -515,7 +513,7 @@ def arm_i32imm : PatLeaf<(imm), [{
 }]>;
 
 /// imm0_7 predicate - Immediate in the range [0,7].
-def Imm0_7AsmOperand: AsmOperandClass { let Name = "Imm0_7"; }
+def Imm0_7AsmOperand: ImmAsmOperand { let Name = "Imm0_7"; }
 def imm0_7 : Operand<i32>, ImmLeaf<i32, [{
   return Imm >= 0 && Imm < 8;
 }]> {
@@ -523,7 +521,7 @@ def imm0_7 : Operand<i32>, ImmLeaf<i32, [{
 }
 
 /// imm0_15 predicate - Immediate in the range [0,15].
-def Imm0_15AsmOperand: AsmOperandClass { let Name = "Imm0_15"; }
+def Imm0_15AsmOperand: ImmAsmOperand { let Name = "Imm0_15"; }
 def imm0_15 : Operand<i32>, ImmLeaf<i32, [{
   return Imm >= 0 && Imm < 16;
 }]> {
@@ -531,17 +529,33 @@ def imm0_15 : Operand<i32>, ImmLeaf<i32, [{
 }
 
 /// imm0_31 predicate - True if the 32-bit immediate is in the range [0,31].
-def Imm0_31AsmOperand: AsmOperandClass { let Name = "Imm0_31"; }
+def Imm0_31AsmOperand: ImmAsmOperand { let Name = "Imm0_31"; }
 def imm0_31 : Operand<i32>, ImmLeaf<i32, [{
   return Imm >= 0 && Imm < 32;
 }]> {
   let ParserMatchClass = Imm0_31AsmOperand;
 }
 
+/// imm0_32 predicate - True if the 32-bit immediate is in the range [0,32].
+def Imm0_32AsmOperand: ImmAsmOperand { let Name = "Imm0_32"; }
+def imm0_32 : Operand<i32>, ImmLeaf<i32, [{
+  return Imm >= 0 && Imm < 32;
+}]> {
+  let ParserMatchClass = Imm0_32AsmOperand;
+}
+
 /// imm0_255 predicate - Immediate in the range [0,255].
-def Imm0_255AsmOperand : AsmOperandClass { let Name = "Imm0_255"; }
+def Imm0_255AsmOperand : ImmAsmOperand { let Name = "Imm0_255"; }
 def imm0_255 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
   let ParserMatchClass = Imm0_255AsmOperand;
+}
+
+/// imm0_65535 - An immediate is in the range [0.65535].
+def Imm0_65535AsmOperand: ImmAsmOperand { let Name = "Imm0_65535"; }
+def imm0_65535 : Operand<i32>, ImmLeaf<i32, [{
+  return Imm >= 0 && Imm < 65536;
+}]> {
+  let ParserMatchClass = Imm0_65535AsmOperand;
 }
 
 // imm0_65535_expr - For movt/movw - 16-bit immediate that can also reference
@@ -550,14 +564,14 @@ def imm0_255 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
 // FIXME: This really needs a Thumb version separate from the ARM version.
 // While the range is the same, and can thus use the same match class,
 // the encoding is different so it should have a different encoder method.
-def Imm0_65535ExprAsmOperand: AsmOperandClass { let Name = "Imm0_65535Expr"; }
+def Imm0_65535ExprAsmOperand: ImmAsmOperand { let Name = "Imm0_65535Expr"; }
 def imm0_65535_expr : Operand<i32> {
   let EncoderMethod = "getHiLo16ImmOpValue";
   let ParserMatchClass = Imm0_65535ExprAsmOperand;
 }
 
 /// imm24b - True if the 32-bit immediate is encodable in 24 bits.
-def Imm24bitAsmOperand: AsmOperandClass { let Name = "Imm24bit"; }
+def Imm24bitAsmOperand: ImmAsmOperand { let Name = "Imm24bit"; }
 def imm24b : Operand<i32>, ImmLeaf<i32, [{
   return Imm >= 0 && Imm <= 0xffffff;
 }]> {
@@ -1538,7 +1552,7 @@ PseudoInst<(outs), (ins i32imm:$amt, pred:$p), NoItinerary,
 }
 
 // Atomic pseudo-insts which will be lowered to ldrexd/strexd loops.
-// (These psuedos use a hand-written selection code).
+// (These pseudos use a hand-written selection code).
 let usesCustomInserter = 1, Defs = [CPSR], mayLoad = 1, mayStore = 1 in {
 def ATOMOR6432   : PseudoInst<(outs GPR:$dst1, GPR:$dst2),
                               (ins GPR:$addr, GPR:$src1, GPR:$src2),
@@ -1640,7 +1654,7 @@ class CPS<dag iops, string asm_ops>
   let Inst{27-20} = 0b00010000;
   let Inst{19-18} = imod;
   let Inst{17}    = M; // Enabled if mode is set;
-  let Inst{16}    = 0;
+  let Inst{16-9}  = 0b00000000;
   let Inst{8-6}   = iflags;
   let Inst{5}     = 0;
   let Inst{4-0}   = mode;
@@ -2185,9 +2199,10 @@ def LDRD : AI3ld<0b1101, 0, (outs GPR:$Rd, GPR:$dst2),
 }
 
 // Indexed loads
-multiclass AI2_ldridx<bit isByte, string opc, InstrItinClass itin> {
+multiclass AI2_ldridx<bit isByte, string opc,
+                      InstrItinClass iii, InstrItinClass iir> {
   def _PRE_IMM  : AI2ldstidx<1, isByte, 1, (outs GPR:$Rt, GPR:$Rn_wb),
-                      (ins addrmode_imm12:$addr), IndexModePre, LdFrm, itin,
+                      (ins addrmode_imm12:$addr), IndexModePre, LdFrm, iii,
                       opc, "\t$Rt, $addr!", "$addr.base = $Rn_wb", []> {
     bits<17> addr;
     let Inst{25} = 0;
@@ -2199,7 +2214,7 @@ multiclass AI2_ldridx<bit isByte, string opc, InstrItinClass itin> {
   }
 
   def _PRE_REG  : AI2ldstidx<1, isByte, 1, (outs GPR:$Rt, GPR:$Rn_wb),
-                      (ins ldst_so_reg:$addr), IndexModePre, LdFrm, itin,
+                      (ins ldst_so_reg:$addr), IndexModePre, LdFrm, iir,
                       opc, "\t$Rt, $addr!", "$addr.base = $Rn_wb", []> {
     bits<17> addr;
     let Inst{25} = 1;
@@ -2213,7 +2228,7 @@ multiclass AI2_ldridx<bit isByte, string opc, InstrItinClass itin> {
 
   def _POST_REG : AI2ldstidx<1, isByte, 0, (outs GPR:$Rt, GPR:$Rn_wb),
                        (ins addr_offset_none:$addr, am2offset_reg:$offset),
-                       IndexModePost, LdFrm, itin,
+                       IndexModePost, LdFrm, iir,
                        opc, "\t$Rt, $addr, $offset",
                        "$addr.base = $Rn_wb", []> {
      // {12}     isAdd
@@ -2230,7 +2245,7 @@ multiclass AI2_ldridx<bit isByte, string opc, InstrItinClass itin> {
 
    def _POST_IMM : AI2ldstidx<1, isByte, 0, (outs GPR:$Rt, GPR:$Rn_wb),
                        (ins addr_offset_none:$addr, am2offset_imm:$offset),
-                      IndexModePost, LdFrm, itin,
+                      IndexModePost, LdFrm, iii,
                       opc, "\t$Rt, $addr, $offset",
                       "$addr.base = $Rn_wb", []> {
     // {12}     isAdd
@@ -2248,8 +2263,10 @@ multiclass AI2_ldridx<bit isByte, string opc, InstrItinClass itin> {
 }
 
 let mayLoad = 1, neverHasSideEffects = 1 in {
-defm LDR  : AI2_ldridx<0, "ldr", IIC_iLoad_ru>;
-defm LDRB : AI2_ldridx<1, "ldrb", IIC_iLoad_bh_ru>;
+// FIXME: for LDR_PRE_REG etc. the itineray should be either IIC_iLoad_ru or
+// IIC_iLoad_siu depending on whether it the offset register is shifted.
+defm LDR  : AI2_ldridx<0, "ldr", IIC_iLoad_iu, IIC_iLoad_ru>;
+defm LDRB : AI2_ldridx<1, "ldrb", IIC_iLoad_bh_iu, IIC_iLoad_bh_ru>;
 }
 
 multiclass AI3_ldridx<bits<4> op, string opc, InstrItinClass itin> {
@@ -2439,10 +2456,11 @@ def STRD : AI3str<0b1111, (outs), (ins GPR:$Rt, GPR:$src2, addrmode3:$addr),
 }
 
 // Indexed stores
-multiclass AI2_stridx<bit isByte, string opc, InstrItinClass itin> {
+multiclass AI2_stridx<bit isByte, string opc,
+                      InstrItinClass iii, InstrItinClass iir> {
   def _PRE_IMM : AI2ldstidx<0, isByte, 1, (outs GPR:$Rn_wb),
                             (ins GPR:$Rt, addrmode_imm12:$addr), IndexModePre,
-                            StFrm, itin,
+                            StFrm, iii,
                             opc, "\t$Rt, $addr!", "$addr.base = $Rn_wb", []> {
     bits<17> addr;
     let Inst{25} = 0;
@@ -2455,7 +2473,7 @@ multiclass AI2_stridx<bit isByte, string opc, InstrItinClass itin> {
 
   def _PRE_REG  : AI2ldstidx<0, isByte, 1, (outs GPR:$Rn_wb),
                       (ins GPR:$Rt, ldst_so_reg:$addr),
-                      IndexModePre, StFrm, itin,
+                      IndexModePre, StFrm, iir,
                       opc, "\t$Rt, $addr!", "$addr.base = $Rn_wb", []> {
     bits<17> addr;
     let Inst{25} = 1;
@@ -2468,7 +2486,7 @@ multiclass AI2_stridx<bit isByte, string opc, InstrItinClass itin> {
   }
   def _POST_REG : AI2ldstidx<0, isByte, 0, (outs GPR:$Rn_wb),
                 (ins GPR:$Rt, addr_offset_none:$addr, am2offset_reg:$offset),
-                IndexModePost, StFrm, itin,
+                IndexModePost, StFrm, iir,
                 opc, "\t$Rt, $addr, $offset",
                 "$addr.base = $Rn_wb", []> {
      // {12}     isAdd
@@ -2485,7 +2503,7 @@ multiclass AI2_stridx<bit isByte, string opc, InstrItinClass itin> {
 
    def _POST_IMM : AI2ldstidx<0, isByte, 0, (outs GPR:$Rn_wb),
                 (ins GPR:$Rt, addr_offset_none:$addr, am2offset_imm:$offset),
-                IndexModePost, StFrm, itin,
+                IndexModePost, StFrm, iii,
                 opc, "\t$Rt, $addr, $offset",
                 "$addr.base = $Rn_wb", []> {
     // {12}     isAdd
@@ -2502,8 +2520,10 @@ multiclass AI2_stridx<bit isByte, string opc, InstrItinClass itin> {
 }
 
 let mayStore = 1, neverHasSideEffects = 1 in {
-defm STR  : AI2_stridx<0, "str", IIC_iStore_ru>;
-defm STRB : AI2_stridx<1, "strb", IIC_iStore_bh_ru>;
+// FIXME: for STR_PRE_REG etc. the itineray should be either IIC_iStore_ru or
+// IIC_iStore_siu depending on whether it the offset register is shifted.
+defm STR  : AI2_stridx<0, "str", IIC_iStore_iu, IIC_iStore_ru>;
+defm STRB : AI2_stridx<1, "strb", IIC_iStore_bh_iu, IIC_iStore_bh_ru>;
 }
 
 def : ARMPat<(post_store GPR:$Rt, addr_offset_none:$addr,
@@ -4650,11 +4670,8 @@ def Int_eh_sjlj_longjmp : PseudoInst<(outs), (ins GPR:$src, GPR:$scratch),
 // This pseudo is used for ARM, Thumb1 and Thumb2. Any differences are
 // handled when the pseudo is expanded (which happens before any passes
 // that need the instruction size).
-let isBarrier = 1, hasSideEffects = 1 in
-def Int_eh_sjlj_dispatchsetup :
- PseudoInst<(outs), (ins GPR:$src), NoItinerary,
-            [(ARMeh_sjlj_dispatchsetup GPR:$src)]>,
-              Requires<[IsDarwin]>;
+let isBarrier = 1 in
+def eh_sjlj_dispatchsetup : PseudoInst<(outs), (ins), NoItinerary, []>;
 
 //===----------------------------------------------------------------------===//
 // Non-Instruction Patterns
@@ -4978,13 +4995,65 @@ def : MnemonicAlias<"uqsubaddx", "uqsax">;
 // USAX == USUBADDX
 def : MnemonicAlias<"usubaddx", "usax">;
 
-// LDRSBT/LDRHT/LDRSHT post-index offset if optional.
-// Note that the write-back output register is a dummy operand for MC (it's
-// only meaningful for codegen), so we just pass zero here.
-// FIXME: tblgen not cooperating with argument conversions.
-//def : InstAlias<"ldrsbt${p} $Rt, $addr",
-//                (LDRSBTi GPR:$Rt, GPR:$Rt, addr_offset_none:$addr, 0,pred:$p)>;
-//def : InstAlias<"ldrht${p} $Rt, $addr",
-//                (LDRHTi GPR:$Rt, GPR:$Rt, addr_offset_none:$addr, 0, pred:$p)>;
-//def : InstAlias<"ldrsht${p} $Rt, $addr",
-//                (LDRSHTi GPR:$Rt, GPR:$Rt, addr_offset_none:$addr, 0, pred:$p)>;
+// "mov Rd, so_imm_not" can be handled via "mvn" in assembly, just like
+// for isel.
+def : ARMInstAlias<"mov${s}${p} $Rd, $imm",
+                   (MVNi rGPR:$Rd, so_imm_not:$imm, pred:$p, cc_out:$s)>;
+
+// The shifter forms of the MOV instruction are aliased to the ASR, LSL,
+// LSR, ROR, and RRX instructions.
+// FIXME: We need C++ parser hooks to map the alias to the MOV
+//        encoding. It seems we should be able to do that sort of thing
+//        in tblgen, but it could get ugly.
+def ASRi : ARMAsmPseudo<"asr${s}${p} $Rd, $Rm, $imm",
+                        (ins GPR:$Rd, GPR:$Rm, imm0_32:$imm, pred:$p,
+                             cc_out:$s)>;
+def LSRi : ARMAsmPseudo<"lsr${s}${p} $Rd, $Rm, $imm",
+                        (ins GPR:$Rd, GPR:$Rm, imm0_32:$imm, pred:$p,
+                             cc_out:$s)>;
+def LSLi : ARMAsmPseudo<"lsl${s}${p} $Rd, $Rm, $imm",
+                        (ins GPR:$Rd, GPR:$Rm, imm0_31:$imm, pred:$p,
+                             cc_out:$s)>;
+def RORi : ARMAsmPseudo<"ror${s}${p} $Rd, $Rm, $imm",
+                        (ins GPR:$Rd, GPR:$Rm, imm0_31:$imm, pred:$p,
+                             cc_out:$s)>;
+def RRXi : ARMAsmPseudo<"rrx${s}${p} $Rd, $Rm",
+                        (ins GPRnopc:$Rd, GPRnopc:$Rm, pred:$p, cc_out:$s)>;
+def ASRr : ARMAsmPseudo<"asr${s}${p} $Rd, $Rn, $Rm",
+                        (ins GPRnopc:$Rd, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                             cc_out:$s)>;
+def LSRr : ARMAsmPseudo<"lsr${s}${p} $Rd, $Rn, $Rm",
+                        (ins GPRnopc:$Rd, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                             cc_out:$s)>;
+def LSLr : ARMAsmPseudo<"lsl${s}${p} $Rd, $Rn, $Rm",
+                        (ins GPRnopc:$Rd, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                             cc_out:$s)>;
+def RORr : ARMAsmPseudo<"ror${s}${p} $Rd, $Rn, $Rm",
+                        (ins GPRnopc:$Rd, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                             cc_out:$s)>;
+// shifter instructions also support a two-operand form.
+def : ARMInstAlias<"asr${s}${p} $Rm, $imm",
+                   (ASRi GPR:$Rm, GPR:$Rm, imm0_32:$imm, pred:$p, cc_out:$s)>;
+def : ARMInstAlias<"lsr${s}${p} $Rm, $imm",
+                   (LSRi GPR:$Rm, GPR:$Rm, imm0_32:$imm, pred:$p, cc_out:$s)>;
+def : ARMInstAlias<"lsl${s}${p} $Rm, $imm",
+                   (LSLi GPR:$Rm, GPR:$Rm, imm0_31:$imm, pred:$p, cc_out:$s)>;
+def : ARMInstAlias<"ror${s}${p} $Rm, $imm",
+                   (RORi GPR:$Rm, GPR:$Rm, imm0_31:$imm, pred:$p, cc_out:$s)>;
+def : ARMInstAlias<"asr${s}${p} $Rn, $Rm",
+                   (ASRr GPRnopc:$Rn, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                         cc_out:$s)>;
+def : ARMInstAlias<"lsr${s}${p} $Rn, $Rm",
+                   (LSRr GPRnopc:$Rn, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                         cc_out:$s)>;
+def : ARMInstAlias<"lsl${s}${p} $Rn, $Rm",
+                   (LSLr GPRnopc:$Rn, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                         cc_out:$s)>;
+def : ARMInstAlias<"ror${s}${p} $Rn, $Rm",
+                   (RORr GPRnopc:$Rn, GPRnopc:$Rn, GPRnopc:$Rm, pred:$p,
+                         cc_out:$s)>;
+
+
+// 'mul' instruction can be specified with only two operands.
+def : ARMInstAlias<"mul${s}${p} $Rn, $Rm",
+                   (MUL rGPR:$Rn, rGPR:$Rn, rGPR:$Rm, pred:$p, cc_out:$s)>;

@@ -297,6 +297,9 @@
 /* Define to 1 if you have the `powf' function. */
 #cmakedefine HAVE_POWF ${HAVE_POWF}
 
+/* Define to 1 if you have the `pread' function. */
+#cmakedefine HAVE_PREAD ${HAVE_PREAD}
+
 /* Define if libtool can extract symbol lists from object files. */
 #undef HAVE_PRELOADED_SYMBOLS
 
@@ -555,7 +558,7 @@
 #cmakedefine01 LLVM_HAS_ATOMICS
 
 /* Host triple we were built on */
-#cmakedefine LLVM_HOSTTRIPLE "${LLVM_HOSTTRIPLE}"
+#cmakedefine LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}"
 
 /* Installation directory for include files */
 #cmakedefine LLVM_INCLUDEDIR "${LLVM_INCLUDEDIR}"

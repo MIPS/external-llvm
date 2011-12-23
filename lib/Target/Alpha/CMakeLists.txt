@@ -1,12 +1,11 @@
 set(LLVM_TARGET_DEFINITIONS Alpha.td)
 
-llvm_tablegen(AlphaGenRegisterInfo.inc -gen-register-info)
-llvm_tablegen(AlphaGenInstrInfo.inc -gen-instr-info)
-llvm_tablegen(AlphaGenAsmWriter.inc -gen-asm-writer)
-llvm_tablegen(AlphaGenDAGISel.inc -gen-dag-isel)
-llvm_tablegen(AlphaGenCallingConv.inc -gen-callingconv)
-llvm_tablegen(AlphaGenSubtargetInfo.inc -gen-subtarget)
-add_public_tablegen_target(AlphaCommonTableGen)
+tablegen(AlphaGenRegisterInfo.inc -gen-register-info)
+tablegen(AlphaGenInstrInfo.inc -gen-instr-info)
+tablegen(AlphaGenAsmWriter.inc -gen-asm-writer)
+tablegen(AlphaGenDAGISel.inc -gen-dag-isel)
+tablegen(AlphaGenCallingConv.inc -gen-callingconv)
+tablegen(AlphaGenSubtargetInfo.inc -gen-subtarget)
 
 add_llvm_target(AlphaCodeGen
   AlphaAsmPrinter.cpp
@@ -20,18 +19,6 @@ add_llvm_target(AlphaCodeGen
   AlphaSubtarget.cpp
   AlphaTargetMachine.cpp
   AlphaSelectionDAGInfo.cpp
-  )
-
-add_llvm_library_dependencies(LLVMAlphaCodeGen
-  LLVMAlphaDesc
-  LLVMAlphaInfo
-  LLVMAsmPrinter
-  LLVMCodeGen
-  LLVMCore
-  LLVMMC
-  LLVMSelectionDAG
-  LLVMSupport
-  LLVMTarget
   )
 
 add_subdirectory(TargetInfo)

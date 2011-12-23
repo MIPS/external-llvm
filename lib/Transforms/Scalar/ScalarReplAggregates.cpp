@@ -806,8 +806,10 @@ ConvertScalar_InsertValue(Value *SV, Value *Old,
         return Builder.CreateBitCast(SV, AllocaType);
 
     // Must be an element insertion.
-    assert(SV->getType() == VTy->getElementType());
-    uint64_t EltSize = TD.getTypeAllocSizeInBits(VTy->getElementType());
+    Type *EltTy = VTy->getElementType();
+    if (SV->getType() != EltTy)
+      SV = Builder.CreateBitCast(SV, EltTy);
+    uint64_t EltSize = TD.getTypeAllocSizeInBits(EltTy);
     unsigned Elt = Offset/EltSize;
     return Builder.CreateInsertElement(Old, SV, Builder.getInt32(Elt));
   }
@@ -1873,8 +1875,14 @@ void SROA::RewriteBitCast(BitCastInst *BC, AllocaInst *AI, uint64_t Offset,
     return;
 
   // The bitcast references the original alloca.  Replace its uses with
-  // references to the first new element alloca.
-  Instruction *Val = NewElts[0];
+  // references to the alloca containing offset zero (which is normally at
+  // index zero, but might not be in cases involving structs with elements
+  // of size zero).
+  Type *T = AI->getAllocatedType();
+  uint64_t EltOffset = 0;
+  Type *IdxTy;
+  uint64_t Idx = FindElementAndOffset(T, EltOffset, IdxTy);
+  Instruction *Val = NewElts[Idx];
   if (Val->getType() != BC->getDestTy()) {
     Val = new BitCastInst(Val, BC->getDestTy(), "", BC);
     Val->takeName(BC);
@@ -2158,6 +2166,8 @@ void SROA::RewriteMemIntrinUserOfAlloca(MemIntrinsic *MI, Instruction *Inst,
     }
 
     unsigned EltSize = TD->getTypeAllocSize(EltTy);
+    if (!EltSize)
+      continue;
 
     IRBuilder<> Builder(MI);
 
@@ -2524,13 +2534,12 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
       // ignore it if we know that the value isn't captured.
       unsigned ArgNo = CS.getArgumentNo(UI);
       if (CS.onlyReadsMemory() &&
-          (CS.getInstruction()->use_empty() ||
-           CS.paramHasAttr(ArgNo+1, Attribute::NoCapture)))
+          (CS.getInstruction()->use_empty() || CS.doesNotCapture(ArgNo)))
         continue;
 
       // If this is being passed as a byval argument, the caller is making a
       // copy, so it is only a read of the alloca.
-      if (CS.paramHasAttr(ArgNo+1, Attribute::ByVal))
+      if (CS.isByValArgument(ArgNo))
         continue;
     }
 

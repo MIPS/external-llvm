@@ -34,6 +34,16 @@
 #define snprintf _snprintf
 #endif
 
+#if !defined(PRId64)
+#define	PRId64	"lld"
+#endif
+#if !defined(PRIx64)
+#define	PRIx64	"llx"
+#endif
+#if !defined(PRIX64)
+#define	PRIX64	"llx"
+#endif
+
 namespace llvm {
 
 /// format_object_base - This is a helper class used for handling formatted

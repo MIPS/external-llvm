@@ -78,6 +78,12 @@ static bool operator ==(const DataRefImpl &a, const DataRefImpl &b) {
   return std::memcmp(&a, &b, sizeof(DataRefImpl)) == 0;
 }
 
+static bool operator <(const DataRefImpl &a, const DataRefImpl &b) {
+  // Check bitwise identical. This is the only legal way to compare a union w/o
+  // knowing which member is in use.
+  return std::memcmp(&a, &b, sizeof(DataRefImpl)) < 0;
+}
+
 class SymbolRef;
 
 /// RelocationRef - This is a value type class that represents a single
@@ -99,7 +105,12 @@ public:
 
   error_code getAddress(uint64_t &Result) const;
   error_code getSymbol(SymbolRef &Result) const;
-  error_code getType(uint32_t &Result) const;
+  error_code getType(uint64_t &Result) const;
+
+  /// @brief Indicates whether this relocation should hidden when listing
+  /// relocations, usually because it is the trailing part of a multipart
+  /// relocation that will be printed as part of the leading relocation.
+  error_code getHidden(bool &Result) const;
 
   /// @brief Get a string that represents the type of this relocation.
   ///
@@ -130,6 +141,7 @@ public:
   SectionRef(DataRefImpl SectionP, const ObjectFile *Owner);
 
   bool operator==(const SectionRef &Other) const;
+  bool operator <(const SectionRef &Other) const;
 
   error_code getNext(SectionRef &Result) const;
 
@@ -177,6 +189,7 @@ public:
   SymbolRef(DataRefImpl SymbolP, const ObjectFile *Owner);
 
   bool operator==(const SymbolRef &Other) const;
+  bool operator <(const SymbolRef &Other) const;
 
   error_code getNext(SymbolRef &Result) const;
 
@@ -279,13 +292,17 @@ protected:
   virtual error_code getRelocationSymbol(DataRefImpl Rel,
                                          SymbolRef &Res) const = 0;
   virtual error_code getRelocationType(DataRefImpl Rel,
-                                       uint32_t &Res) const = 0;
+                                       uint64_t &Res) const = 0;
   virtual error_code getRelocationTypeName(DataRefImpl Rel,
                                        SmallVectorImpl<char> &Result) const = 0;
   virtual error_code getRelocationAdditionalInfo(DataRefImpl Rel,
                                                  int64_t &Res) const = 0;
   virtual error_code getRelocationValueString(DataRefImpl Rel,
                                        SmallVectorImpl<char> &Result) const = 0;
+  virtual error_code getRelocationHidden(DataRefImpl Rel, bool &Result) const {
+    Result = false;
+    return object_error::success;
+  }
 
 public:
 
@@ -328,6 +345,10 @@ inline SymbolRef::SymbolRef(DataRefImpl SymbolP, const ObjectFile *Owner)
 
 inline bool SymbolRef::operator==(const SymbolRef &Other) const {
   return SymbolPimpl == Other.SymbolPimpl;
+}
+
+inline bool SymbolRef::operator <(const SymbolRef &Other) const {
+  return SymbolPimpl < Other.SymbolPimpl;
 }
 
 inline error_code SymbolRef::getNext(SymbolRef &Result) const {
@@ -391,6 +412,10 @@ inline SectionRef::SectionRef(DataRefImpl SectionP,
 
 inline bool SectionRef::operator==(const SectionRef &Other) const {
   return SectionPimpl == Other.SectionPimpl;
+}
+
+inline bool SectionRef::operator <(const SectionRef &Other) const {
+  return SectionPimpl < Other.SectionPimpl;
 }
 
 inline error_code SectionRef::getNext(SectionRef &Result) const {
@@ -465,7 +490,7 @@ inline error_code RelocationRef::getSymbol(SymbolRef &Result) const {
   return OwningObject->getRelocationSymbol(RelocationPimpl, Result);
 }
 
-inline error_code RelocationRef::getType(uint32_t &Result) const {
+inline error_code RelocationRef::getType(uint64_t &Result) const {
   return OwningObject->getRelocationType(RelocationPimpl, Result);
 }
 
@@ -481,6 +506,10 @@ inline error_code RelocationRef::getAdditionalInfo(int64_t &Result) const {
 inline error_code RelocationRef::getValueString(SmallVectorImpl<char> &Result)
   const {
   return OwningObject->getRelocationValueString(RelocationPimpl, Result);
+}
+
+inline error_code RelocationRef::getHidden(bool &Result) const {
+  return OwningObject->getRelocationHidden(RelocationPimpl, Result);
 }
 
 } // end namespace object

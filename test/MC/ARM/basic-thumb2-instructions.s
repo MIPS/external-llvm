@@ -73,6 +73,7 @@ _func:
         add r12, r6, #0x100
         addw r12, r6, #0x100
         adds r1, r2, #0x1f0
+	add r2, #1
 
 @ CHECK: itet	eq                      @ encoding: [0x0a,0xbf]
 @ CHECK: addeq	r1, r2, #4              @ encoding: [0x11,0x1d]
@@ -85,6 +86,7 @@ _func:
 @ CHECK: add.w	r12, r6, #256           @ encoding: [0x06,0xf5,0x80,0x7c]
 @ CHECK: addw	r12, r6, #256           @ encoding: [0x06,0xf2,0x00,0x1c]
 @ CHECK: adds.w	r1, r2, #496            @ encoding: [0x12,0xf5,0xf8,0x71]
+@ CHECK: add.w	r2, r2, #1              @ encoding: [0x02,0xf1,0x01,0x02]
 
 
 @------------------------------------------------------------------------------
@@ -599,10 +601,14 @@ _func:
         ldmdb r4, {r5, r6}
         ldmdb r5!, {r3, r8}
         ldmea r5!, {r3, r8}
+        ldmdb.w r4, {r5, r6}
+        ldmdb.w r5!, {r3, r8}
 
 @ CHECK: ldmdb	r4, {r4, r5, r8, r9}    @ encoding: [0x14,0xe9,0x30,0x03]
 @ CHECK: ldmdb	r4, {r5, r6}            @ encoding: [0x14,0xe9,0x60,0x00]
 @ CHECK: ldmdb	r5!, {r3, r8}           @ encoding: [0x35,0xe9,0x08,0x01]
+@ CHECK: ldmdb	r5!, {r3, r8}           @ encoding: [0x35,0xe9,0x08,0x01]
+@ CHECK: ldmdb	r4, {r5, r6}            @ encoding: [0x14,0xe9,0x60,0x00]
 @ CHECK: ldmdb	r5!, {r3, r8}           @ encoding: [0x35,0xe9,0x08,0x01]
 
 
@@ -638,9 +644,12 @@ _func:
 @ LDR(literal)
 @------------------------------------------------------------------------------
         ldr.w r5, _foo
+        ldr   lr, (_strcmp-4)
 
 @ CHECK: ldr.w	r5, _foo                @ encoding: [0x5f'A',0xf8'A',A,0x50'A']
-            @   fixup A - offset: 0, value: _foo, kind: fixup_t2_ldst_pcrel_12
+@ CHECK: @   fixup A - offset: 0, value: _foo, kind: fixup_t2_ldst_pcrel_12
+@ CHECK: ldr.w	lr, _strcmp-4           @ encoding: [0x5f'A',0xf8'A',A,0xe0'A']
+@ CHECK: @   fixup A - offset: 0, value: _strcmp-4, kind: fixup_t2_ldst_pcrel_12
 
 
 @------------------------------------------------------------------------------
@@ -813,7 +822,7 @@ _func:
 @------------------------------------------------------------------------------
         ldrh r5, _bar
 
-@ CHECK: ldrh.w	r5, _bar                @ encoding: [0xbf'A',0xf8'A',A,0x50'A']
+@ CHECK: ldrh.w	r5, _bar                @ encoding: [0x3f'A',0xf8'A',A,0x50'A']
 @ CHECK:     @   fixup A - offset: 0, value: _bar, kind: fixup_t2_ldst_pcrel_12
 
 
@@ -882,7 +891,7 @@ _func:
 @------------------------------------------------------------------------------
         ldrsb r5, _bar
 
-@ CHECK: ldrsb.w r5, _bar               @ encoding: [0x9f'A',0xf9'A',A,0x50'A']
+@ CHECK: ldrsb.w r5, _bar               @ encoding: [0x1f'A',0xf9'A',A,0x50'A']
 @ CHECK:      @   fixup A - offset: 0, value: _bar, kind: fixup_t2_ldst_pcrel_12
 
 
@@ -951,7 +960,7 @@ _func:
 @------------------------------------------------------------------------------
         ldrsh r5, _bar
 
-@ CHECK: ldrsh.w r5, _bar               @ encoding: [0xbf'A',0xf9'A',A,0x50'A']
+@ CHECK: ldrsh.w r5, _bar               @ encoding: [0x3f'A',0xf9'A',A,0x50'A']
 @ CHECK:      @   fixup A - offset: 0, value: _bar, kind: fixup_t2_ldst_pcrel_12
 
 @ TEMPORARILY DISABLED:
@@ -1109,6 +1118,10 @@ _func:
         movne.w r1, #12
         mov.w r6, #450
 
+        @ alias for mvn
+	mov r3, #-3
+
+
 @ CHECK: movs	r1, #21                 @ encoding: [0x15,0x21]
 @ CHECK: movs.w	r1, #21                 @ encoding: [0x5f,0xf0,0x15,0x01]
 @ CHECK: movs.w	r8, #21                 @ encoding: [0x5f,0xf0,0x15,0x08]
@@ -1123,6 +1136,9 @@ _func:
 @ CHECK: moveq	r1, #12                 @ encoding: [0x0c,0x21]
 @ CHECK: movne.w r1, #12                @ encoding: [0x4f,0xf0,0x0c,0x01]
 @ CHECK: mov.w	r6, #450                @ encoding: [0x4f,0xf4,0xe1,0x76]
+
+@ CHECK: mvn	r3, #2                  @ encoding: [0x6f,0xf0,0x02,0x03]
+
 
 
 @------------------------------------------------------------------------------
@@ -1212,12 +1228,18 @@ _func:
         mul r3, r4, r6
         it eq
         muleq r3, r4, r5
+        it le
+        mulle r4, r4, r8
+        mul r6, r5
 
 @ CHECK: muls	r3, r4, r3              @ encoding: [0x63,0x43]
 @ CHECK: mul	r3, r4, r3              @ encoding: [0x04,0xfb,0x03,0xf3]
 @ CHECK: mul	r3, r4, r6              @ encoding: [0x04,0xfb,0x06,0xf3]
 @ CHECK: it	eq                      @ encoding: [0x08,0xbf]
 @ CHECK: muleq	r3, r4, r5              @ encoding: [0x04,0xfb,0x05,0xf3]
+@ CHECK: it	le                      @ encoding: [0xd8,0xbf]
+@ CHECK: mulle	r4, r4, r8              @ encoding: [0x04,0xfb,0x08,0xf4]
+@ CHECK: mul	r6, r6, r5              @ encoding: [0x06,0xfb,0x05,0xf6]
 
 
 @------------------------------------------------------------------------------
@@ -1228,7 +1250,7 @@ _func:
         mvns r0, #0x3fc0000
         itte eq
         mvnseq r1, #12
-        mvneq r1, #12
+        mvneq.w r1, #12
         mvnne r1, #12
 
 @ CHECK: mvns	r8, #21                 @ encoding: [0x7f,0xf0,0x15,0x08]
@@ -1247,7 +1269,7 @@ _func:
         mvns r2, r3
         mvn r5, r6, lsl #19
         mvn r5, r6, lsr #9
-        mvn r5, r6, asr #4
+        mvn.w r5, r6, asr #4
         mvn r5, r6, ror #6
         mvn r5, r6, rrx
         it eq
@@ -1354,9 +1376,9 @@ _func:
 @------------------------------------------------------------------------------
 @ PLD(literal)
 @------------------------------------------------------------------------------
-        pld  _foo
+@        pld  _foo
 
-@ CHECK: pld	_foo                    @ encoding: [0x9f'A',0xf8'A',A,0xf0'A']
+@ FIXME: pld	_foo                    @ encoding: [0x9f'A',0xf8'A',A,0xf0'A']
             @   fixup A - offset: 0, value: _foo, kind: fixup_t2_ldst_pcrel_12
 
 
@@ -1396,10 +1418,10 @@ _func:
 @------------------------------------------------------------------------------
 @ PLI(literal)
 @------------------------------------------------------------------------------
-        pli  _foo
+@        pli  _foo
 
 
-@ CHECK: pli	_foo                    @ encoding: [0x9f'A',0xf9'A',A,0xf0'A']
+@ FIXME: pli	_foo                    @ encoding: [0x9f'A',0xf9'A',A,0xf0'A']
            @   fixup A - offset: 0, value: _foo, kind: fixup_t2_ldst_pcrel_12
 
 
@@ -1419,6 +1441,21 @@ _func:
 @ CHECK: pli	[r8, r2, lsl #2]        @ encoding: [0x18,0xf9,0x22,0xf0]
 @ CHECK: pli	[sp, r2, lsl #1]        @ encoding: [0x1d,0xf9,0x12,0xf0]
 @ CHECK: pli	[sp, r2]                @ encoding: [0x1d,0xf9,0x02,0xf0]
+
+@------------------------------------------------------------------------------
+@ POP (alias)
+@------------------------------------------------------------------------------
+        pop {r2, r9}
+
+@ CHECK: pop.w	{r2, r9}                @ encoding: [0xbd,0xe8,0x04,0x02]
+
+
+@------------------------------------------------------------------------------
+@ PUSH (alias)
+@------------------------------------------------------------------------------
+        push {r2, r9}
+
+@ CHECK: push.w	{r2, r9}                @ encoding: [0x2d,0xe9,0x04,0x02]
 
 
 @------------------------------------------------------------------------------
@@ -2287,11 +2324,13 @@ _func:
         stmdb r4, {r5, r6}
         stmdb r5!, {r3, r8}
         stmea r5!, {r3, r8}
+        stmdb.w r5, {r0, r1}
 
 @ CHECK: stmdb	r4, {r4, r5, r8, r9}    @ encoding: [0x04,0xe9,0x30,0x03]
 @ CHECK: stmdb	r4, {r5, r6}            @ encoding: [0x04,0xe9,0x60,0x00]
 @ CHECK: stmdb	r5!, {r3, r8}           @ encoding: [0x25,0xe9,0x08,0x01]
 @ CHECK: stm.w	r5!, {r3, r8}           @ encoding: [0xa5,0xe8,0x08,0x01]
+@ CHECK: stmdb	r5, {r0, r1}            @ encoding: [0x05,0xe9,0x03,0x00]
 
 
 @------------------------------------------------------------------------------
@@ -2526,6 +2565,7 @@ _func:
         sub r12, r6, #0x100
         subw r12, r6, #0x100
         subs r1, r2, #0x1f0
+	sub r2, #1
 
 @ CHECK: itet	eq                      @ encoding: [0x0a,0xbf]
 @ CHECK: subeq	r1, r2, #4              @ encoding: [0x11,0x1f]
@@ -2538,6 +2578,7 @@ _func:
 @ CHECK: sub.w	r12, r6, #256           @ encoding: [0xa6,0xf5,0x80,0x7c]
 @ CHECK: subw	r12, r6, #256           @ encoding: [0xa6,0xf2,0x00,0x1c]
 @ CHECK: subs.w	r1, r2, #496            @ encoding: [0xb2,0xf5,0xf8,0x71]
+@ CHECK: sub.w	r2, r2, #1              @ encoding: [0xa2,0xf1,0x01,0x02]
 
 
 @------------------------------------------------------------------------------

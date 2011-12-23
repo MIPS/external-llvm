@@ -515,7 +515,7 @@
 #elif defined(__i386__)
 #   define LLVM_NATIVE_ARCHNAME X86
 #elif defined(__mips__)
-#   define LLVM_NATIVE_ARCHNAME Mips
+#   define LLVM_NATIVE_ARCHNAME MIPS
 #else
 #   error Unsupported target architecture for LLVM_NATIVE_ARCHNAME
 #endif

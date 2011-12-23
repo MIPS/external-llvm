@@ -71,7 +71,7 @@ void llvm::sys::Memory::InvalidateInstructionCache(const void *Addr,
   char *End = Start + Len;
   __clear_cache(Start, End);
 #  elif defined(__mips__)
-#   if defined(ANDROID_TARGET_BUILD)
+#   if defined(__android__)
   long int start = (long int) Addr;
   cacheflush(start, start+Len, BCACHE);
 #   else
