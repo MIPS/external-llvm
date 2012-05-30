@@ -1,55 +1,30 @@
 LOCAL_PATH := $(call my-dir)
 
-#===---------------------------------------------------------------===
-# libARMAsmParser (common)
-#===---------------------------------------------------------------===
-
-arm_asm_parser_SRC_FILES := \
-  ARMAsmLexer.cpp \
-  ARMAsmParser.cpp
-
-arm_asm_parser_TBLGEN_TABLES := \
-  ARMGenInstrInfo.inc \
-  ARMGenRegisterInfo.inc \
-  ARMGenAsmMatcher.inc \
-  ARMGenSubtargetInfo.inc
-
-arm_asm_parser_TBLGEN_TD_DIR := $(LOCAL_PATH)/..
-
-arm_asm_parser_C_INCLUDES := $(LOCAL_PATH)/..
-
-
-#===---------------------------------------------------------------===
-# libARMAsmParser (host)
-#===---------------------------------------------------------------===
+# For the host only
+# =====================================================
 include $(CLEAR_VARS)
 include $(CLEAR_TBLGEN_VARS)
 
+TBLGEN_TABLES :=	\
+	ARMGenInstrInfo.inc	\
+	ARMGenRegisterInfo.inc \
+	ARMGenAsmMatcher.inc \
+	ARMGenSubtargetInfo.inc
+
+
+TBLGEN_TD_DIR := $(LOCAL_PATH)/..
+
+LOCAL_SRC_FILES :=	\
+	ARMAsmLexer.cpp	\
+	ARMAsmParser.cpp
+
+LOCAL_C_INCLUDES +=	\
+	$(LOCAL_PATH)/..
+
 LOCAL_MODULE:= libLLVMARMAsmParser
+
 LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := $(arm_asm_parser_SRC_FILES)
-LOCAL_C_INCLUDES += $(arm_asm_parser_C_INCLUDES)
-TBLGEN_TABLES := $(arm_asm_parser_TBLGEN_TABLES)
-TBLGEN_TD_DIR := $(arm_asm_parser_TBLGEN_TD_DIR)
 
 include $(LLVM_HOST_BUILD_MK)
 include $(LLVM_TBLGEN_RULES_MK)
 include $(BUILD_HOST_STATIC_LIBRARY)
-
-
-#===---------------------------------------------------------------===
-# libARMAsmParser (target)
-#===---------------------------------------------------------------===
-include $(CLEAR_VARS)
-include $(CLEAR_TBLGEN_VARS)
-
-LOCAL_MODULE:= libLLVMARMAsmParser
-LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := $(arm_asm_parser_SRC_FILES)
-LOCAL_C_INCLUDES += $(arm_asm_parser_C_INCLUDES)
-TBLGEN_TABLES := $(arm_asm_parser_TBLGEN_TABLES)
-TBLGEN_TD_DIR := $(arm_asm_parser_TBLGEN_TD_DIR)
-
-include $(LLVM_DEVICE_BUILD_MK)
-include $(LLVM_TBLGEN_RULES_MK)
-include $(BUILD_STATIC_LIBRARY)

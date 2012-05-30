@@ -205,10 +205,10 @@ void MCELFStreamer::EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
 
   if (MCELF::GetBinding(SD) == ELF_STB_Local) {
     const MCSection *Section = getAssembler().getContext().getELFSection(".bss",
-                                                                    ELF::SHT_NOBITS,
-                                                                    ELF::SHF_WRITE |
-                                                                    ELF::SHF_ALLOC,
-                                                                    SectionKind::getBSS());
+                                                         ELF::SHT_NOBITS,
+                                                         ELF::SHF_WRITE |
+                                                         ELF::SHF_ALLOC,
+                                                         SectionKind::getBSS());
     Symbol->setSection(*Section);
 
     struct LocalCommon L = {&SD, Size, ByteAlignment};
@@ -308,6 +308,10 @@ void  MCELFStreamer::fixSymbolsInTLSFixups(const MCExpr *expr) {
     case MCSymbolRefExpr::VK_ARM_TLSGD:
     case MCSymbolRefExpr::VK_ARM_TPOFF:
     case MCSymbolRefExpr::VK_ARM_GOTTPOFF:
+    case MCSymbolRefExpr::VK_Mips_TLSGD:
+    case MCSymbolRefExpr::VK_Mips_GOTTPREL:
+    case MCSymbolRefExpr::VK_Mips_TPREL_HI:
+    case MCSymbolRefExpr::VK_Mips_TPREL_LO:
       break;
     }
     MCSymbolData &SD = getAssembler().getOrCreateSymbolData(symRef.getSymbol());

@@ -13,7 +13,7 @@
 #include "BlackfinTargetMachine.h"
 #include "Blackfin.h"
 #include "llvm/PassManager.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Target/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -24,10 +24,8 @@ extern "C" void LLVMInitializeBlackfinTarget() {
 BlackfinTargetMachine::BlackfinTargetMachine(const Target &T,
                                              StringRef TT,
                                              StringRef CPU,
-                                             StringRef FS,
-                                             Reloc::Model RM,
-                                             CodeModel::Model CM)
-  : LLVMTargetMachine(T, TT, CPU, FS, RM, CM),
+                                             StringRef FS, Reloc::Model RM)
+  : LLVMTargetMachine(T, TT, CPU, FS, RM),
     DataLayout("e-p:32:32-i64:32-f64:32-n32"),
     Subtarget(TT, CPU, FS),
     TLInfo(*this),

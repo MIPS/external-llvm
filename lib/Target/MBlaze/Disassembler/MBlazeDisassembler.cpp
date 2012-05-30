@@ -13,13 +13,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "MBlaze.h"
-#include "MBlazeInstrInfo.h"
 #include "MBlazeDisassembler.h"
 
 #include "llvm/MC/EDInstInfo.h"
 #include "llvm/MC/MCDisassembler.h"
-#include "llvm/MC/MCDisassembler.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MemoryObject.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -30,14 +29,14 @@
 #include "MBlazeGenEDInfo.inc"
 
 namespace llvm {
-extern MCInstrDesc MBlazeInsts[];
+extern const MCInstrDesc MBlazeInsts[];
 }
 
 using namespace llvm;
 
 const unsigned UNSUPPORTED = -1;
 
-static unsigned mblazeBinary2Opcode[] = {
+static const unsigned mblazeBinary2Opcode[] = {
   MBlaze::ADD,   MBlaze::RSUB,   MBlaze::ADDC,   MBlaze::RSUBC,   //00,01,02,03
   MBlaze::ADDK,  MBlaze::RSUBK,  MBlaze::ADDKC,  MBlaze::RSUBKC,  //04,05,06,07
   MBlaze::ADDI,  MBlaze::RSUBI,  MBlaze::ADDIC,  MBlaze::RSUBIC,  //08,09,0A,0B

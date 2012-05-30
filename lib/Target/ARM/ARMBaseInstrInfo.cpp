@@ -28,7 +28,6 @@
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Support/BranchProbability.h"
@@ -47,7 +46,7 @@ EnableARM3Addr("enable-arm-3-addr-conv", cl::Hidden,
                cl::desc("Enable ARM 2-addr to 3-addr conv"));
 
 static cl::opt<bool>
-WidenVMOVS("widen-vmovs", cl::Hidden,
+WidenVMOVS("widen-vmovs", cl::Hidden, cl::init(true),
            cl::desc("Widen ARM vmovs to vmovd when possible"));
 
 /// ARM_MLxEntry - Record information about MLA / MLS instructions.
@@ -710,8 +709,7 @@ storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
   unsigned Align = MFI.getObjectAlignment(FI);
 
   MachineMemOperand *MMO =
-    MF.getMachineMemOperand(MachinePointerInfo(
-                                         PseudoSourceValue::getFixedStack(FI)),
+    MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(FI),
                             MachineMemOperand::MOStore,
                             MFI.getObjectSize(FI),
                             Align);
@@ -862,7 +860,7 @@ loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
   unsigned Align = MFI.getObjectAlignment(FI);
   MachineMemOperand *MMO =
     MF.getMachineMemOperand(
-                    MachinePointerInfo(PseudoSourceValue::getFixedStack(FI)),
+                    MachinePointerInfo::getFixedStack(FI),
                             MachineMemOperand::MOLoad,
                             MFI.getObjectSize(FI),
                             Align);
@@ -2401,10 +2399,14 @@ ARMBaseInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
     case ARM::VLD1q16:
     case ARM::VLD1q32:
     case ARM::VLD1q64:
-    case ARM::VLD1q8_UPD:
-    case ARM::VLD1q16_UPD:
-    case ARM::VLD1q32_UPD:
-    case ARM::VLD1q64_UPD:
+    case ARM::VLD1q8wb_fixed:
+    case ARM::VLD1q16wb_fixed:
+    case ARM::VLD1q32wb_fixed:
+    case ARM::VLD1q64wb_fixed:
+    case ARM::VLD1q8wb_register:
+    case ARM::VLD1q16wb_register:
+    case ARM::VLD1q32wb_register:
+    case ARM::VLD1q64wb_register:
     case ARM::VLD2d8:
     case ARM::VLD2d16:
     case ARM::VLD2d32:
@@ -2424,7 +2426,8 @@ ARMBaseInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
     case ARM::VLD3d8_UPD:
     case ARM::VLD3d16_UPD:
     case ARM::VLD3d32_UPD:
-    case ARM::VLD1d64T_UPD:
+    case ARM::VLD1d64Twb_fixed:
+    case ARM::VLD1d64Twb_register:
     case ARM::VLD3q8_UPD:
     case ARM::VLD3q16_UPD:
     case ARM::VLD3q32_UPD:
@@ -2435,7 +2438,8 @@ ARMBaseInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
     case ARM::VLD4d8_UPD:
     case ARM::VLD4d16_UPD:
     case ARM::VLD4d32_UPD:
-    case ARM::VLD1d64Q_UPD:
+    case ARM::VLD1d64Qwb_fixed:
+    case ARM::VLD1d64Qwb_register:
     case ARM::VLD4q8_UPD:
     case ARM::VLD4q16_UPD:
     case ARM::VLD4q32_UPD:
@@ -2562,10 +2566,14 @@ ARMBaseInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
     case ARM::VLD1q16Pseudo:
     case ARM::VLD1q32Pseudo:
     case ARM::VLD1q64Pseudo:
-    case ARM::VLD1q8Pseudo_UPD:
-    case ARM::VLD1q16Pseudo_UPD:
-    case ARM::VLD1q32Pseudo_UPD:
-    case ARM::VLD1q64Pseudo_UPD:
+    case ARM::VLD1q8PseudoWB_register:
+    case ARM::VLD1q16PseudoWB_register:
+    case ARM::VLD1q32PseudoWB_register:
+    case ARM::VLD1q64PseudoWB_register:
+    case ARM::VLD1q8PseudoWB_fixed:
+    case ARM::VLD1q16PseudoWB_fixed:
+    case ARM::VLD1q32PseudoWB_fixed:
+    case ARM::VLD1q64PseudoWB_fixed:
     case ARM::VLD2d8Pseudo:
     case ARM::VLD2d16Pseudo:
     case ARM::VLD2d32Pseudo:
@@ -2585,7 +2593,6 @@ ARMBaseInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
     case ARM::VLD3d8Pseudo_UPD:
     case ARM::VLD3d16Pseudo_UPD:
     case ARM::VLD3d32Pseudo_UPD:
-    case ARM::VLD1d64TPseudo_UPD:
     case ARM::VLD3q8Pseudo_UPD:
     case ARM::VLD3q16Pseudo_UPD:
     case ARM::VLD3q32Pseudo_UPD:
@@ -2602,7 +2609,6 @@ ARMBaseInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
     case ARM::VLD4d8Pseudo_UPD:
     case ARM::VLD4d16Pseudo_UPD:
     case ARM::VLD4d32Pseudo_UPD:
-    case ARM::VLD1d64QPseudo_UPD:
     case ARM::VLD4q8Pseudo_UPD:
     case ARM::VLD4q16Pseudo_UPD:
     case ARM::VLD4q32Pseudo_UPD:

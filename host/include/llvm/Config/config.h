@@ -4,9 +4,6 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-/* Bug report url */
-#define BUG_REPORT_URL "http://llvm.org/bugs/"
-
 /* Relative directory for resource files */
 #define CLANG_RESOURCE_DIR ""
 

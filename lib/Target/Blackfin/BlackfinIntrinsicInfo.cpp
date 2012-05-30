@@ -83,7 +83,7 @@ bool BlackfinIntrinsicInfo::isOverloaded(unsigned IntrID) const {
 
 static FunctionType *getType(LLVMContext &Context, unsigned id) {
   Type *ResultTy = NULL;
-  SmallVector<Type*, 8> ArgTys;
+  std::vector<Type*> ArgTys;
   bool IsVarArg = false;
   
 #define GET_INTRINSIC_GENERATOR

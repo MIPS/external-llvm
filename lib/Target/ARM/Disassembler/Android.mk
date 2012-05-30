@@ -1,14 +1,14 @@
 LOCAL_PATH := $(call my-dir)
 
 arm_disassembler_TBLGEN_TABLES := \
-  ARMGenDisassemblerTables.inc \
-  ARMGenEDInfo.inc \
-  ARMGenInstrInfo.inc \
-  ARMGenSubtargetInfo.inc \
-  ARMGenRegisterInfo.inc
+    ARMGenDecoderTables.inc \
+    ARMGenEDInfo.inc \
+    ARMGenInstrInfo.inc \
+    ARMGenSubtargetInfo.inc \
+    ARMGenRegisterInfo.inc
 
 arm_disassembler_SRC_FILES := \
-  ARMDisassembler.cpp
+    ARMDisassembler.cpp
 
 # For the device
 # =====================================================
@@ -53,4 +53,3 @@ LOCAL_MODULE_TAGS := optional
 include $(LLVM_HOST_BUILD_MK)
 include $(LLVM_TBLGEN_RULES_MK)
 include $(BUILD_HOST_STATIC_LIBRARY)
-

@@ -289,7 +289,7 @@ static void DisassembleObject(const ObjectFile *Obj, bool InlineRelocs) {
 
         if (DisAsm->getInstruction(Inst, Size, memoryObject, Index,
                                    DebugOut, nulls())) {
-          outs() << format("%8x:\t", SectionAddr + Index);
+          outs() << format("%8"PRIx64":\t", SectionAddr + Index);
           DumpBytes(StringRef(Bytes.data() + Index, Size));
           IP->printInst(&Inst, outs(), "");
           outs() << "\n";
@@ -301,16 +301,22 @@ static void DisassembleObject(const ObjectFile *Obj, bool InlineRelocs) {
 
         // Print relocation for instruction.
         while (rel_cur != rel_end) {
+          bool hidden = false;
           uint64_t addr;
           SmallString<16> name;
           SmallString<32> val;
+
+          // If this relocation is hidden, skip it.
+          if (error(rel_cur->getHidden(hidden))) goto skip_print_rel;
+          if (hidden) goto skip_print_rel;
+
           if (error(rel_cur->getAddress(addr))) goto skip_print_rel;
           // Stop when rel_cur's address is past the current instruction.
-          if (addr > Index + Size) break;
+          if (addr >= Index + Size) break;
           if (error(rel_cur->getTypeName(name))) goto skip_print_rel;
           if (error(rel_cur->getValueString(val))) goto skip_print_rel;
 
-          outs() << format("\t\t\t%8x: ", SectionAddr + addr) << name << "\t"
+          outs() << format("\t\t\t%8"PRIx64": ", SectionAddr + addr) << name << "\t"
                  << val << "\n";
 
         skip_print_rel:
@@ -336,9 +342,12 @@ static void PrintRelocations(const ObjectFile *o) {
                              ri != re; ri.increment(ec)) {
       if (error(ec)) return;
 
+      bool hidden;
       uint64_t address;
       SmallString<32> relocname;
       SmallString<32> valuestr;
+      if (error(ri->getHidden(hidden))) continue;
+      if (hidden) continue;
       if (error(ri->getTypeName(relocname))) continue;
       if (error(ri->getAddress(address))) continue;
       if (error(ri->getValueString(valuestr))) continue;
@@ -391,7 +400,7 @@ static void PrintSectionContents(const ObjectFile *o) {
 
     // Dump out the content as hex and printable ascii characters.
     for (std::size_t addr = 0, end = Contents.size(); addr < end; addr += 16) {
-      outs() << format(" %04x ", BaseAddr + addr);
+      outs() << format(" %04"PRIx64" ", BaseAddr + addr);
       // Dump line of hex.
       for (std::size_t i = 0; i < 16; ++i) {
         if (i != 0 && i % 4 == 0)
@@ -497,7 +506,7 @@ static void PrintSymbolTable(const ObjectFile *o) {
       else if (Type == SymbolRef::ST_Function)
         FileFunc = 'F';
 
-      outs() << format("%08x", Offset) << " "
+      outs() << format("%08"PRIx64, Offset) << " "
              << GlobLoc // Local -> 'l', Global -> 'g', Neither -> ' '
              << (Weak ? 'w' : ' ') // Weak?
              << ' ' // Constructor. Not supported yet.
@@ -517,7 +526,7 @@ static void PrintSymbolTable(const ObjectFile *o) {
         outs() << SectionName;
       }
       outs() << '\t'
-             << format("%08x ", Size)
+             << format("%08"PRIx64" ", Size)
              << Name
              << '\n';
     }
@@ -547,8 +556,10 @@ static void DumpArchive(const Archive *a) {
                                e = a->end_children(); i != e; ++i) {
     OwningPtr<Binary> child;
     if (error_code ec = i->getAsBinary(child)) {
-      errs() << ToolName << ": '" << a->getFileName() << "': " << ec.message()
-             << ".\n";
+      // Ignore non-object files.
+      if (ec != object_error::invalid_file_type)
+        errs() << ToolName << ": '" << a->getFileName() << "': " << ec.message()
+               << ".\n";
       continue;
     }
     if (ObjectFile *o = dyn_cast<ObjectFile>(child.get()))

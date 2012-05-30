@@ -98,6 +98,8 @@ namespace llvm {
   public:
     explicit MipsTargetLowering(MipsTargetMachine &TM);
 
+    virtual MVT getShiftAmountTy(EVT LHSTy) const { return MVT::i32; }
+
     virtual bool allowsUnalignedMemoryAccesses (EVT VT) const;
 
     /// LowerOperation - Provide custom lowering hooks for some operations.
@@ -115,7 +117,7 @@ namespace llvm {
     // Subtarget Info
     const MipsSubtarget *Subtarget;
     
-    bool HasMips64, IsN64;
+    bool HasMips64, IsN64, IsO32;
 
     // Lower Operand helpers
     SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
@@ -155,6 +157,12 @@ namespace llvm {
                 const SmallVectorImpl<ISD::InputArg> &Ins,
                 DebugLoc dl, SelectionDAG &DAG,
                 SmallVectorImpl<SDValue> &InVals) const;
+
+    virtual bool
+    CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
+       bool isVarArg,
+       const SmallVectorImpl<ISD::OutputArg> &Outs,
+       LLVMContext &Context) const;
 
     virtual SDValue
       LowerReturn(SDValue Chain,

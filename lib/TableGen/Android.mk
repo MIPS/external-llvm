@@ -1,36 +1,26 @@
 LOCAL_PATH:= $(call my-dir)
 
-libtablegen_SRC_FILES := \
-  Error.cpp \
-  Main.cpp \
-  Record.cpp \
-  TableGenBackend.cpp \
-  TGLexer.cpp \
-  TGParser.cpp
+libtblgen_SRC_FILES :=	\
+	Error.cpp \
+	Main.cpp \
+	Record.cpp \
+	TableGenBackend.cpp \
+	TGLexer.cpp \
+	TGParser.cpp
 
 # For the host
 # =====================================================
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := $(libtablegen_SRC_FILES)
-LOCAL_MODULE:= libLLVMTableGen
+LOCAL_SRC_FILES := $(libtblgen_SRC_FILES)
 
-LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE:= libLLVMTblGen
 
 REQUIRES_EH := 1
 REQUIRES_RTTI := 1
 
+LOCAL_MODULE_TAGS := optional
+
 include $(LLVM_HOST_BUILD_MK)
 include $(BUILD_HOST_STATIC_LIBRARY)
 
-## For the device
-## =====================================================
-#include $(CLEAR_VARS)
-#
-#LOCAL_SRC_FILES := $(libtablegen_SRC_FILES)
-#LOCAL_MODULE:= libLLVMTableGen
-#
-#LOCAL_MODULE_TAGS := optional
-#
-#include $(LLVM_DEVICE_BUILD_MK)
-#include $(BUILD_STATIC_LIBRARY)

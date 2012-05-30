@@ -13,10 +13,8 @@
 
 #define DEBUG_TYPE "asm-printer"
 #include "llvm/CodeGen/AsmPrinter.h"
-#if !defined(ANDROID_TARGET_BUILD) || defined(ANDROID_ENGINEERING_BUILD)
-#   include "DwarfDebug.h"
-#   include "DwarfException.h"
-#endif // !ANDROID_TARGET_BUILD || ANDROID_ENGINEERING_BUILD
+#include "DwarfDebug.h"
+#include "DwarfException.h"
 #include "llvm/Module.h"
 #include "llvm/CodeGen/GCMetadataPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -48,7 +46,6 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Timer.h"
-#include <ctype.h>
 using namespace llvm;
 
 static const char *DWARFGroupName = "DWARF Emission";
@@ -189,7 +186,6 @@ bool AsmPrinter::doInitialization(Module &M) {
     OutStreamer.AddBlankLine();
   }
 
-#if !defined(ANDROID_TARGET_BUILD) || defined(ANDROID_ENGINEERING_BUILD)
   if (MAI->doesSupportDebugInformation())
     DD = new DwarfDebug(this, &M);
 
@@ -207,9 +203,6 @@ bool AsmPrinter::doInitialization(Module &M) {
     DE = new Win64Exception(this);
     return false;
   }
-#else
-  return false;
-#endif // !ANDROID_TARGET_BUILD || ANDROID_ENGINEERING_BUILD
 
   llvm_unreachable("Unknown exception type.");
 }
@@ -466,7 +459,6 @@ void AsmPrinter::EmitFunctionHeader() {
   }
 
   // Emit pre-function debug and/or EH information.
-#if !defined(ANDROID_TARGET_BUILD) || defined(ANDROID_ENGINEERING_BUILD)
   if (DE) {
     NamedRegionTimer T(EHTimerName, DWARFGroupName, TimePassesIsEnabled);
     DE->BeginFunction(MF);
@@ -475,7 +467,6 @@ void AsmPrinter::EmitFunctionHeader() {
     NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
     DD->beginFunction(MF);
   }
-#endif // !ANDROID_TARGET_BUILD || ANDROID_ENGINEERING_BUILD
 }
 
 /// EmitFunctionEntryLabel - Emit the label that is the entrypoint for the
@@ -622,6 +613,10 @@ bool AsmPrinter::needsSEHMoves() {
     MF->getFunction()->needsUnwindTableEntry();
 }
 
+bool AsmPrinter::needsRelocationsForDwarfStringPool() const {
+  return MAI->doesDwarfUseRelocationsForStringPool();
+}
+
 void AsmPrinter::emitPrologLabel(const MachineInstr &MI) {
   MCSymbol *Label = MI.getOperand(0).getMCSymbol();
 
@@ -671,15 +666,13 @@ void AsmPrinter::EmitFunctionBody() {
       if (!II->isLabel() && !II->isImplicitDef() && !II->isKill() &&
           !II->isDebugValue()) {
         HasAnyRealCode = true;
-
         ++EmittedInsts;
       }
-#if !defined(ANDROID_TARGET_BUILD) || defined(ANDROID_ENGINEERING_BUILD)
+
       if (ShouldPrintDebugScopes) {
         NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
         DD->beginInstruction(II);
       }
-#endif // !ANDROID_TARGET_BUILD || ANDROID_ENGINEERING_BUILD
 
       if (isVerbose())
         EmitComments(*II, OutStreamer.GetCommentOS());
@@ -716,12 +709,10 @@ void AsmPrinter::EmitFunctionBody() {
         break;
       }
 
-#if !defined(ANDROID_TARGET_BUILD) || defined(ANDROID_ENGINEERING_BUILD)
       if (ShouldPrintDebugScopes) {
         NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
         DD->endInstruction(II);
       }
-#endif // !ANDROID_TARGET_BUILD || ANDROID_ENGINEERING_BUILD
     }
   }
 
@@ -745,6 +736,18 @@ void AsmPrinter::EmitFunctionBody() {
       OutStreamer.EmitRawText(StringRef("\tnop\n"));
   }
 
+  const Function *F = MF->getFunction();
+  for (Function::const_iterator i = F->begin(), e = F->end(); i != e; ++i) {
+    const BasicBlock *BB = i;
+    if (!BB->hasAddressTaken())
+      continue;
+    MCSymbol *Sym = GetBlockAddressSymbol(BB);
+    if (Sym->isDefined())
+      continue;
+    OutStreamer.AddComment("Address of block that was removed by CodeGen");
+    OutStreamer.EmitLabel(Sym);
+  }
+
   // Emit target-specific gunk after the function body.
   EmitFunctionBodyEnd();
 
@@ -764,7 +767,6 @@ void AsmPrinter::EmitFunctionBody() {
   }
 
   // Emit post-function debug information.
-#if !defined(ANDROID_TARGET_BUILD) || defined(ANDROID_ENGINEERING_BUILD)
   if (DD) {
     NamedRegionTimer T(DbgTimerName, DWARFGroupName, TimePassesIsEnabled);
     DD->endFunction(MF);
@@ -773,7 +775,6 @@ void AsmPrinter::EmitFunctionBody() {
     NamedRegionTimer T(EHTimerName, DWARFGroupName, TimePassesIsEnabled);
     DE->EndFunction();
   }
-#endif // !ANDROID_TARGET_BUILD || ANDROID_ENGINEERING_BUILD
   MMI->EndFunction();
 
   // Print out jump tables referenced by the function.
@@ -857,7 +858,6 @@ bool AsmPrinter::doFinalization(Module &M) {
   }
 
   // Finalize debug and EH information.
-#if !defined(ANDROID_TARGET_BUILD) || defined(ANDROID_ENGINEERING_BUILD)
   if (DE) {
     {
       NamedRegionTimer T(EHTimerName, DWARFGroupName, TimePassesIsEnabled);
@@ -872,7 +872,6 @@ bool AsmPrinter::doFinalization(Module &M) {
     }
     delete DD; DD = 0;
   }
-#endif // !ANDROID_TARGET_BUILD || ANDROID_ENGINEERING_BUILD
 
   // If the target wants to know about weak references, print them all.
   if (MAI->getWeakRefDirective()) {
@@ -1771,8 +1770,10 @@ static void EmitGlobalConstantImpl(const Constant *CV, unsigned AddrSpace,
     case 2:
     case 4:
     case 8:
+#define	PRIx64	"llx"
       if (AP.isVerbose())
-        AP.OutStreamer.GetCommentOS() << format("0x%llx\n", CI->getZExtValue());
+        AP.OutStreamer.GetCommentOS() << format("0x%" PRIx64 "\n",
+                                                CI->getZExtValue());
       AP.OutStreamer.EmitIntValue(CI->getZExtValue(), Size, AddrSpace);
       return;
     default:
@@ -2109,4 +2110,3 @@ GCMetadataPrinter *AsmPrinter::GetOrCreateGCPrinter(GCStrategy *S) {
   report_fatal_error("no GCMetadataPrinter registered for GC: " + Twine(Name));
   return 0;
 }
-

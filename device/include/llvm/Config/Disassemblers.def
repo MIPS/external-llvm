@@ -28,6 +28,8 @@
   LLVM_DISASSEMBLER(ARM)
 #elif defined(__i386__)
   LLVM_DISASSEMBLER(X86)
+#elif defined(__mips__)
+  LLVM_DISASSEMBLER(Mips)
 #else
 #  error Unsupported TARGET_ARCH for LLVM_DISASSEMBLER
 #endif

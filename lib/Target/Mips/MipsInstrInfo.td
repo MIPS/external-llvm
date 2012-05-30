@@ -39,8 +39,8 @@ def SDT_MipsDivRem       : SDTypeProfile<0, 2,
 
 def SDT_MipsThreadPointer : SDTypeProfile<1, 0, [SDTCisPtrTy<0>]>;
 
-def SDT_MipsDynAlloc    : SDTypeProfile<1, 1, [SDTCisVT<0, i32>,
-                                               SDTCisVT<1, iPTR>]>;
+def SDT_MipsDynAlloc    : SDTypeProfile<1, 1, [SDTCisVT<0, iPTR>,
+                                               SDTCisSameAs<0, 1>]>;
 def SDT_Sync             : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
 
 def SDT_Ext : SDTypeProfile<1, 3, [SDTCisInt<0>, SDTCisSameAs<0, 1>,
@@ -138,8 +138,17 @@ def NotN64      : Predicate<"!Subtarget.isABI_N64()">;
 //===----------------------------------------------------------------------===//
 
 // Instruction operand types
-def brtarget    : Operand<OtherVT>;
-def calltarget  : Operand<i32>;
+def jmptarget   : Operand<OtherVT> {
+  let EncoderMethod = "getJumpTargetOpValue";
+}
+def brtarget    : Operand<OtherVT> {
+  let EncoderMethod = "getBranchTargetOpValue";
+  let OperandType = "OPERAND_PCREL";
+}
+def calltarget  : Operand<iPTR> {
+  let EncoderMethod = "getJumpTargetOpValue";
+}
+def calltarget64: Operand<i64>;
 def simm16      : Operand<i32>;
 def simm16_64   : Operand<i64>;
 def shamt       : Operand<i32>;
@@ -164,6 +173,12 @@ def mem64 : Operand<i64> {
 def mem_ea : Operand<i32> {
   let PrintMethod = "printMemOperandEA";
   let MIOperandInfo = (ops CPURegs, simm16);
+  let EncoderMethod = "getMemEncoding";
+}
+
+def mem_ea_64 : Operand<i64> {
+  let PrintMethod = "printMemOperandEA";
+  let MIOperandInfo = (ops CPU64Regs, simm16_64);
   let EncoderMethod = "getMemEncoding";
 }
 
@@ -327,15 +342,15 @@ class shift_rotate_imm32<bits<6> func, bits<5> isRotate, string instr_asm,
 
 class shift_rotate_reg<bits<6> func, bits<5> isRotate, string instr_asm,
                        SDNode OpNode, RegisterClass RC>:
-  FR<0x00, func, (outs RC:$rd), (ins RC:$rs, RC:$rt),
+  FR<0x00, func, (outs RC:$rd), (ins CPURegs:$rs, RC:$rt),
      !strconcat(instr_asm, "\t$rd, $rt, $rs"),
-     [(set RC:$rd, (OpNode RC:$rt, RC:$rs))], IIAlu> {
+     [(set RC:$rd, (OpNode RC:$rt, CPURegs:$rs))], IIAlu> {
   let shamt = isRotate;
 }
 
 // Load Upper Imediate
-class LoadUpper<bits<6> op, string instr_asm>:
-  FI<op, (outs CPURegs:$rt), (ins uimm16:$imm16),
+class LoadUpper<bits<6> op, string instr_asm, RegisterClass RC, Operand Imm>:
+  FI<op, (outs RC:$rt), (ins Imm:$imm16),
      !strconcat(instr_asm, "\t$rt, $imm16"), [], IIAlu> {
   let rs = 0;
 }
@@ -365,6 +380,22 @@ class StoreM<bits<6> op, string instr_asm, PatFrag OpNode, RegisterClass RC,
   let isPseudo = Pseudo;
 }
 
+// Memory Load/Store
+let canFoldAsLoad = 1 in
+class LoadX<bits<6> op, RegisterClass RC,
+            Operand MemOpnd>:
+  FMem<op, (outs RC:$rt), (ins MemOpnd:$addr),
+     "",
+     [], IILoad> {
+}
+
+class StoreX<bits<6> op, RegisterClass RC,
+             Operand MemOpnd>:
+  FMem<op, (outs), (ins RC:$rt, MemOpnd:$addr),
+     "",
+     [], IIStore> {
+}
+
 // 32-bit load.
 multiclass LoadM32<bits<6> op, string instr_asm, PatFrag OpNode,
                    bit Pseudo = 0> {
@@ -383,6 +414,13 @@ multiclass LoadM64<bits<6> op, string instr_asm, PatFrag OpNode,
                Requires<[IsN64]>;
 } 
 
+// 32-bit load.
+multiclass LoadX32<bits<6> op> {
+  def #NAME# : LoadX<op, CPURegs, mem>,
+               Requires<[NotN64]>;
+  def _P8    : LoadX<op, CPURegs, mem64>,
+               Requires<[IsN64]>;
+}
 // 32-bit store.
 multiclass StoreM32<bits<6> op, string instr_asm, PatFrag OpNode,
                     bit Pseudo = 0> {
@@ -398,6 +436,14 @@ multiclass StoreM64<bits<6> op, string instr_asm, PatFrag OpNode,
   def #NAME# : StoreM<op, instr_asm, OpNode, CPU64Regs, mem, Pseudo>,
                Requires<[NotN64]>;
   def _P8    : StoreM<op, instr_asm, OpNode, CPU64Regs, mem64, Pseudo>,
+               Requires<[IsN64]>;
+}
+
+// 32-bit store.
+multiclass StoreX32<bits<6> op> {
+  def #NAME# : StoreX<op, CPURegs, mem>,
+               Requires<[NotN64]>;
+  def _P8    : StoreX<op, CPURegs, mem64>,
                Requires<[IsN64]>;
 }
 
@@ -442,13 +488,14 @@ class SetCC_I<bits<6> op, string instr_asm, PatFrag cond_op, Operand Od,
 // Unconditional branch
 let isBranch=1, isTerminator=1, isBarrier=1, hasDelaySlot = 1 in
 class JumpFJ<bits<6> op, string instr_asm>:
-  FJ<op, (outs), (ins brtarget:$target),
+  FJ<op, (outs), (ins jmptarget:$target),
      !strconcat(instr_asm, "\t$target"), [(br bb:$target)], IIBranch>;
 
-let isBranch=1, isTerminator=1, isBarrier=1, rd=0, hasDelaySlot = 1 in
-class JumpFR<bits<6> op, bits<6> func, string instr_asm>:
-  FR<op, func, (outs), (ins CPURegs:$rs),
-     !strconcat(instr_asm, "\t$rs"), [(brind CPURegs:$rs)], IIBranch> {
+let isBranch=1, isTerminator=1, isBarrier=1, rd=0, hasDelaySlot = 1,
+    isIndirectBranch = 1 in
+class JumpFR<bits<6> op, bits<6> func, string instr_asm, RegisterClass RC>:
+  FR<op, func, (outs), (ins RC:$rs),
+     !strconcat(instr_asm, "\t$rs"), [(brind RC:$rs)], IIBranch> {
   let rt = 0;
   let rd = 0;
   let shamt = 0;
@@ -525,9 +572,9 @@ class MoveToLOHI<bits<6> func, string instr_asm, RegisterClass RC,
   let Defs = DefRegs;
 }
 
-class EffectiveAddress<string instr_asm> :
-  FMem<0x09, (outs CPURegs:$rt), (ins mem_ea:$addr),
-     instr_asm, [(set CPURegs:$rt, addr:$addr)], IIAlu>;
+class EffectiveAddress<string instr_asm, RegisterClass RC, Operand Mem> :
+  FMem<0x09, (outs RC:$rt), (ins Mem:$addr),
+     instr_asm, [(set RC:$rt, addr:$addr)], IIAlu>;
 
 // Count Leading Ones/Zeros in Word
 class CountLeading0<bits<6> func, string instr_asm, RegisterClass RC>:
@@ -587,20 +634,41 @@ class ExtIns<bits<6> _funct, string instr_asm, dag outs, dag ins,
 }
 
 // Atomic instructions with 2 source operands (ATOMIC_SWAP & ATOMIC_LOAD_*).
-class Atomic2Ops<PatFrag Op, string Opstr> :
-  MipsPseudo<(outs CPURegs:$dst), (ins CPURegs:$ptr, CPURegs:$incr),
+class Atomic2Ops<PatFrag Op, string Opstr, RegisterClass DRC,
+                 RegisterClass PRC> :
+  MipsPseudo<(outs DRC:$dst), (ins PRC:$ptr, DRC:$incr),
              !strconcat("atomic_", Opstr, "\t$dst, $ptr, $incr"),
-             [(set CPURegs:$dst,
-              (Op CPURegs:$ptr, CPURegs:$incr))]>;
+             [(set DRC:$dst, (Op PRC:$ptr, DRC:$incr))]>;
+
+multiclass Atomic2Ops32<PatFrag Op, string Opstr> {
+  def #NAME# : Atomic2Ops<Op, Opstr, CPURegs, CPURegs>, Requires<[NotN64]>;
+  def _P8    : Atomic2Ops<Op, Opstr, CPURegs, CPU64Regs>, Requires<[IsN64]>;
+}
 
 // Atomic Compare & Swap.
-class AtomicCmpSwap<PatFrag Op, string Width> :
-  MipsPseudo<(outs CPURegs:$dst), 
-             (ins CPURegs:$ptr, CPURegs:$cmp, CPURegs:$swap),
-             !strconcat("atomic_cmp_swap_", Width, 
-                        "\t$dst, $ptr, $cmp, $swap"),
-             [(set CPURegs:$dst,
-              (Op CPURegs:$ptr, CPURegs:$cmp, CPURegs:$swap))]>;
+class AtomicCmpSwap<PatFrag Op, string Width, RegisterClass DRC,
+                    RegisterClass PRC> :
+  MipsPseudo<(outs DRC:$dst), (ins PRC:$ptr, DRC:$cmp, DRC:$swap),
+             !strconcat("atomic_cmp_swap_", Width, "\t$dst, $ptr, $cmp, $swap"),
+             [(set DRC:$dst, (Op PRC:$ptr, DRC:$cmp, DRC:$swap))]>;
+
+multiclass AtomicCmpSwap32<PatFrag Op, string Width>  {
+  def #NAME# : AtomicCmpSwap<Op, Width, CPURegs, CPURegs>, Requires<[NotN64]>;
+  def _P8    : AtomicCmpSwap<Op, Width, CPURegs, CPU64Regs>, Requires<[IsN64]>;
+}
+
+class LLBase<bits<6> Opc, string opstring, RegisterClass RC, Operand Mem> :
+  FMem<Opc, (outs RC:$rt), (ins Mem:$addr),
+       !strconcat(opstring, "\t$rt, $addr"), [], IILoad> {
+  let mayLoad = 1;
+}
+
+class SCBase<bits<6> Opc, string opstring, RegisterClass RC, Operand Mem> :
+  FMem<Opc, (outs RC:$dst), (ins RC:$rt, Mem:$addr),
+       !strconcat(opstring, "\t$rt, $addr"), [], IIStore> {
+  let mayStore = 1;
+  let Constraints = "$rt = $dst";
+}
 
 //===----------------------------------------------------------------------===//
 // Pseudo instructions
@@ -636,32 +704,32 @@ def CPLOAD : MipsPseudo<(outs), (ins CPURegs:$picreg), ".cpload\t$picreg", []>;
 def CPRESTORE : MipsPseudo<(outs), (ins i32imm:$loc), ".cprestore\t$loc", []>;
 
 let usesCustomInserter = 1 in {
-  def ATOMIC_LOAD_ADD_I8   : Atomic2Ops<atomic_load_add_8, "load_add_8">;
-  def ATOMIC_LOAD_ADD_I16  : Atomic2Ops<atomic_load_add_16, "load_add_16">;
-  def ATOMIC_LOAD_ADD_I32  : Atomic2Ops<atomic_load_add_32, "load_add_32">;
-  def ATOMIC_LOAD_SUB_I8   : Atomic2Ops<atomic_load_sub_8, "load_sub_8">;
-  def ATOMIC_LOAD_SUB_I16  : Atomic2Ops<atomic_load_sub_16, "load_sub_16">;
-  def ATOMIC_LOAD_SUB_I32  : Atomic2Ops<atomic_load_sub_32, "load_sub_32">;
-  def ATOMIC_LOAD_AND_I8   : Atomic2Ops<atomic_load_and_8, "load_and_8">;
-  def ATOMIC_LOAD_AND_I16  : Atomic2Ops<atomic_load_and_16, "load_and_16">;
-  def ATOMIC_LOAD_AND_I32  : Atomic2Ops<atomic_load_and_32, "load_and_32">;
-  def ATOMIC_LOAD_OR_I8    : Atomic2Ops<atomic_load_or_8, "load_or_8">;
-  def ATOMIC_LOAD_OR_I16   : Atomic2Ops<atomic_load_or_16, "load_or_16">;
-  def ATOMIC_LOAD_OR_I32   : Atomic2Ops<atomic_load_or_32, "load_or_32">;
-  def ATOMIC_LOAD_XOR_I8   : Atomic2Ops<atomic_load_xor_8, "load_xor_8">;
-  def ATOMIC_LOAD_XOR_I16  : Atomic2Ops<atomic_load_xor_16, "load_xor_16">;
-  def ATOMIC_LOAD_XOR_I32  : Atomic2Ops<atomic_load_xor_32, "load_xor_32">;
-  def ATOMIC_LOAD_NAND_I8  : Atomic2Ops<atomic_load_nand_8, "load_nand_8">;
-  def ATOMIC_LOAD_NAND_I16 : Atomic2Ops<atomic_load_nand_16, "load_nand_16">;
-  def ATOMIC_LOAD_NAND_I32 : Atomic2Ops<atomic_load_nand_32, "load_nand_32">;
+  defm ATOMIC_LOAD_ADD_I8   : Atomic2Ops32<atomic_load_add_8, "load_add_8">;
+  defm ATOMIC_LOAD_ADD_I16  : Atomic2Ops32<atomic_load_add_16, "load_add_16">;
+  defm ATOMIC_LOAD_ADD_I32  : Atomic2Ops32<atomic_load_add_32, "load_add_32">;
+  defm ATOMIC_LOAD_SUB_I8   : Atomic2Ops32<atomic_load_sub_8, "load_sub_8">;
+  defm ATOMIC_LOAD_SUB_I16  : Atomic2Ops32<atomic_load_sub_16, "load_sub_16">;
+  defm ATOMIC_LOAD_SUB_I32  : Atomic2Ops32<atomic_load_sub_32, "load_sub_32">;
+  defm ATOMIC_LOAD_AND_I8   : Atomic2Ops32<atomic_load_and_8, "load_and_8">;
+  defm ATOMIC_LOAD_AND_I16  : Atomic2Ops32<atomic_load_and_16, "load_and_16">;
+  defm ATOMIC_LOAD_AND_I32  : Atomic2Ops32<atomic_load_and_32, "load_and_32">;
+  defm ATOMIC_LOAD_OR_I8    : Atomic2Ops32<atomic_load_or_8, "load_or_8">;
+  defm ATOMIC_LOAD_OR_I16   : Atomic2Ops32<atomic_load_or_16, "load_or_16">;
+  defm ATOMIC_LOAD_OR_I32   : Atomic2Ops32<atomic_load_or_32, "load_or_32">;
+  defm ATOMIC_LOAD_XOR_I8   : Atomic2Ops32<atomic_load_xor_8, "load_xor_8">;
+  defm ATOMIC_LOAD_XOR_I16  : Atomic2Ops32<atomic_load_xor_16, "load_xor_16">;
+  defm ATOMIC_LOAD_XOR_I32  : Atomic2Ops32<atomic_load_xor_32, "load_xor_32">;
+  defm ATOMIC_LOAD_NAND_I8  : Atomic2Ops32<atomic_load_nand_8, "load_nand_8">;
+  defm ATOMIC_LOAD_NAND_I16 : Atomic2Ops32<atomic_load_nand_16, "load_nand_16">;
+  defm ATOMIC_LOAD_NAND_I32 : Atomic2Ops32<atomic_load_nand_32, "load_nand_32">;
 
-  def ATOMIC_SWAP_I8       : Atomic2Ops<atomic_swap_8, "swap_8">;
-  def ATOMIC_SWAP_I16      : Atomic2Ops<atomic_swap_16, "swap_16">;
-  def ATOMIC_SWAP_I32      : Atomic2Ops<atomic_swap_32, "swap_32">;
+  defm ATOMIC_SWAP_I8       : Atomic2Ops32<atomic_swap_8, "swap_8">;
+  defm ATOMIC_SWAP_I16      : Atomic2Ops32<atomic_swap_16, "swap_16">;
+  defm ATOMIC_SWAP_I32      : Atomic2Ops32<atomic_swap_32, "swap_32">;
 
-  def ATOMIC_CMP_SWAP_I8   : AtomicCmpSwap<atomic_cmp_swap_8, "8">;
-  def ATOMIC_CMP_SWAP_I16  : AtomicCmpSwap<atomic_cmp_swap_16, "16">;
-  def ATOMIC_CMP_SWAP_I32  : AtomicCmpSwap<atomic_cmp_swap_32, "32">;
+  defm ATOMIC_CMP_SWAP_I8   : AtomicCmpSwap32<atomic_cmp_swap_8, "8">;
+  defm ATOMIC_CMP_SWAP_I16  : AtomicCmpSwap32<atomic_cmp_swap_16, "16">;
+  defm ATOMIC_CMP_SWAP_I32  : AtomicCmpSwap32<atomic_cmp_swap_32, "32">;
 }
 
 //===----------------------------------------------------------------------===//
@@ -680,7 +748,7 @@ def SLTiu   : SetCC_I<0x0b, "sltiu", setult, simm16, immSExt16, CPURegs>;
 def ANDi    : ArithLogicI<0x0c, "andi", and, uimm16, immZExt16, CPURegs>;
 def ORi     : ArithLogicI<0x0d, "ori", or, uimm16, immZExt16, CPURegs>;
 def XORi    : ArithLogicI<0x0e, "xori", xor, uimm16, immZExt16, CPURegs>;
-def LUi     : LoadUpper<0x0f, "lui">;
+def LUi     : LoadUpper<0x0f, "lui", CPURegs, uimm16>;
 
 /// Arithmetic Instructions (3-Operand, R-Type)
 def ADDu    : ArithLogicR<0x00, 0x21, "addu", add, IIAlu, CPURegs, 1>;
@@ -726,6 +794,12 @@ defm ULW     : LoadM32<0x23, "ulw",  load_u, 1>;
 defm USH     : StoreM32<0x29, "ush", truncstorei16_u, 1>;
 defm USW     : StoreM32<0x2b, "usw", store_u, 1>;
 
+/// Primitives for unaligned
+defm LWL     : LoadX32<0x22>;
+defm LWR     : LoadX32<0x26>;
+defm SWL     : StoreX32<0x2A>;
+defm SWR     : StoreX32<0x2E>;
+
 let hasSideEffects = 1 in
 def SYNC : MipsInst<(outs), (ins i32imm:$stype), "sync $stype",
                     [(MipsSync imm:$stype)], NoItinerary, FrmOther>
@@ -738,17 +812,14 @@ def SYNC : MipsInst<(outs), (ins i32imm:$stype), "sync $stype",
 }
 
 /// Load-linked, Store-conditional
-let mayLoad = 1 in
-  def LL    : FMem<0x30, (outs CPURegs:$rt), (ins mem:$addr),
-              "ll\t$rt, $addr", [], IILoad>;
-let mayStore = 1, Constraints = "$rt = $dst" in
-  def SC    : FMem<0x38, (outs CPURegs:$dst), (ins CPURegs:$rt, mem:$addr),
-              "sc\t$rt, $addr", [], IIStore>;
+def LL    : LLBase<0x30, "ll", CPURegs, mem>, Requires<[NotN64]>;
+def LL_P8 : LLBase<0x30, "ll", CPURegs, mem64>, Requires<[IsN64]>;
+def SC    : SCBase<0x38, "sc", CPURegs, mem>, Requires<[NotN64]>;
+def SC_P8 : SCBase<0x38, "sc", CPURegs, mem64>, Requires<[IsN64]>;
 
 /// Jump and Branch Instructions
 def J       : JumpFJ<0x02, "j">;
-let isIndirectBranch = 1 in
-  def JR      : JumpFR<0x00, 0x08, "jr">;
+def JR      : JumpFR<0x00, 0x08, "jr", CPURegs>;
 def JAL     : JumpLink<0x03, "jal">;
 def JALR    : JumpLinkReg<0x00, 0x09, "jalr">;
 def BEQ     : CBranch<0x04, "beq", seteq, CPURegs>;
@@ -798,13 +869,13 @@ let addr=0 in
 // instructions. The same not happens for stack address copies, so an
 // add op with mem ComplexPattern is used and the stack address copy
 // can be matched. It's similar to Sparc LEA_ADDRi
-def LEA_ADDiu : EffectiveAddress<"addiu\t$rt, $addr">;
+def LEA_ADDiu : EffectiveAddress<"addiu\t$rt, $addr", CPURegs, mem_ea>;
 
 // DynAlloc node points to dynamically allocated stack space.
 // $sp is added to the list of implicitly used registers to prevent dead code
 // elimination from removing instructions that modify $sp.
 let Uses = [SP] in
-def DynAlloc : EffectiveAddress<"addiu\t$rt, $addr">;
+def DynAlloc : EffectiveAddress<"addiu\t$rt, $addr", CPURegs, mem_ea>;
 
 // MADD*/MSUB*
 def MADD  : MArithR<0, "madd", MipsMAdd, 1>;
@@ -866,20 +937,20 @@ def : Pat<(MipsJmpLink (i32 texternalsym:$dst)),
 // hi/lo relocs
 def : Pat<(MipsHi tglobaladdr:$in), (LUi tglobaladdr:$in)>;
 def : Pat<(MipsHi tblockaddress:$in), (LUi tblockaddress:$in)>;
+def : Pat<(MipsHi tjumptable:$in), (LUi tjumptable:$in)>;
+def : Pat<(MipsHi tconstpool:$in), (LUi tconstpool:$in)>;
+
 def : Pat<(MipsLo tglobaladdr:$in), (ADDiu ZERO, tglobaladdr:$in)>;
 def : Pat<(MipsLo tblockaddress:$in), (ADDiu ZERO, tblockaddress:$in)>;
+def : Pat<(MipsLo tjumptable:$in), (ADDiu ZERO, tjumptable:$in)>;
+def : Pat<(MipsLo tconstpool:$in), (ADDiu ZERO, tconstpool:$in)>;
+
 def : Pat<(add CPURegs:$hi, (MipsLo tglobaladdr:$lo)),
           (ADDiu CPURegs:$hi, tglobaladdr:$lo)>;
 def : Pat<(add CPURegs:$hi, (MipsLo tblockaddress:$lo)),
           (ADDiu CPURegs:$hi, tblockaddress:$lo)>;
-
-def : Pat<(MipsHi tjumptable:$in), (LUi tjumptable:$in)>;
-def : Pat<(MipsLo tjumptable:$in), (ADDiu ZERO, tjumptable:$in)>;
 def : Pat<(add CPURegs:$hi, (MipsLo tjumptable:$lo)),
           (ADDiu CPURegs:$hi, tjumptable:$lo)>;
-
-def : Pat<(MipsHi tconstpool:$in), (LUi tconstpool:$in)>;
-def : Pat<(MipsLo tconstpool:$in), (ADDiu ZERO, tconstpool:$in)>;
 def : Pat<(add CPURegs:$hi, (MipsLo tconstpool:$lo)),
           (ADDiu CPURegs:$hi, tconstpool:$lo)>;
 

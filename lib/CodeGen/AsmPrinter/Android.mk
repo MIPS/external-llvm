@@ -1,7 +1,7 @@
 LOCAL_PATH := $(call my-dir)
 
-codegen_asmprinter_SRC_FILES := \
-  AsmPrinter.cpp
+codegen_asmprinter_SRC_FILES :=	\
+	AsmPrinter.cpp
 
 # For the host
 # =====================================================
@@ -13,6 +13,7 @@ LOCAL_SRC_FILES :=	\
 	AsmPrinterInlineAsm.cpp	\
 	ARMException.cpp	\
 	DIE.cpp	\
+	DwarfAccelTable.cpp \
 	DwarfCFIException.cpp \
 	DwarfCompileUnit.cpp \
 	DwarfDebug.cpp	\
@@ -32,21 +33,18 @@ include $(BUILD_HOST_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES :=	\
-	AsmPrinter.cpp \
-	AsmPrinterDwarf.cpp \
-	AsmPrinterInlineAsm.cpp
-
-ifeq ($(TARGET_BUILD_VARIANT),eng)
-LOCAL_SRC_FILES :=      \
-	ARMException.cpp        \
-	DIE.cpp \
+	AsmPrinter.cpp	\
+	AsmPrinterDwarf.cpp	\
+	AsmPrinterInlineAsm.cpp \
+	ARMException.cpp	\
+	DIE.cpp	\
+	DwarfAccelTable.cpp \
 	DwarfCFIException.cpp \
 	DwarfCompileUnit.cpp \
-	DwarfDebug.cpp  \
-	DwarfException.cpp      \
-	Win64Exception.cpp \
-	$(LOCAL_SRC_FILES)
-endif
+	DwarfDebug.cpp	\
+	DwarfException.cpp	\
+	OcamlGCPrinter.cpp \
+	Win64Exception.cpp
 
 LOCAL_MODULE:= libLLVMAsmPrinter
 

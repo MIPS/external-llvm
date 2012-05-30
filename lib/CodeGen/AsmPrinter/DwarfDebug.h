@@ -31,7 +31,6 @@
 namespace llvm {
 
 class CompileUnit;
-class DbgConcreteScope;
 class DbgVariable;
 class MachineFrameInfo;
 class MachineModuleInfo;
@@ -217,8 +216,6 @@ class DwarfDebug {
   StringMap<std::pair<MCSymbol*, unsigned> > StringPool;
   unsigned NextStringPoolNumber;
   
-  MCSymbol *getStringPoolEntry(StringRef Str);
-
   /// SectionMap - Provides a unique id per text section.
   ///
   UniqueVector<const MCSection*> SectionMap;
@@ -305,6 +302,10 @@ class DwarfDebug {
   MCSymbol *DwarfDebugLocSectionSym;
   MCSymbol *FunctionBeginSym, *FunctionEndSym;
 
+  // As an optimization, there is no need to emit an entry in the directory
+  // table for the same directory as DW_at_comp_dir.
+  StringRef CompilationDir;
+
 private:
 
   /// assignAbbrevNumber - Define a unique number for the abbreviation.
@@ -366,10 +367,22 @@ private:
   ///
   void emitEndOfLineMatrix(unsigned SectionEnd);
 
-  /// emitDebugPubNames - Emit visible names into a debug pubnames section.
-  ///
-  void emitDebugPubNames();
+  /// emitAccelNames - Emit visible names into a hashed accelerator table
+  /// section.
+  void emitAccelNames();
+  
+  /// emitAccelObjC - Emit objective C classes and categories into a hashed
+  /// accelerator table section.
+  void emitAccelObjC();
 
+  /// emitAccelNamespace - Emit namespace dies into a hashed accelerator
+  /// table.
+  void emitAccelNamespaces();
+
+  /// emitAccelTypes() - Emit type dies into a hashed accelerator table.
+  ///
+  void emitAccelTypes();
+  
   /// emitDebugPubTypes - Emit visible types into a debug pubtypes section.
   ///
   void emitDebugPubTypes();
@@ -505,6 +518,13 @@ public:
 
   /// createSubprogramDIE - Create new DIE using SP.
   DIE *createSubprogramDIE(DISubprogram SP);
+
+  /// getStringPool - returns the entry into the start of the pool.
+  MCSymbol *getStringPool();
+
+  /// getStringPoolEntry - returns an entry into the string pool with the given
+  /// string text.
+  MCSymbol *getStringPoolEntry(StringRef Str);
 };
 } // End of namespace llvm
 

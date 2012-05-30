@@ -69,7 +69,6 @@ static void SrcMgrDiagHandler(const SMDiagnostic &Diag, void *diagInfo) {
 
 /// EmitInlineAsm - Emit a blob of inline asm to the output streamer.
 void AsmPrinter::EmitInlineAsm(StringRef Str, const MDNode *LocMDNode) const {
-#ifndef ANDROID_TARGET_BUILD
   assert(!Str.empty() && "Can't emit empty inline asm block");
 
   // Remember if the buffer is nul terminated or not so we can avoid a copy.
@@ -134,14 +133,12 @@ void AsmPrinter::EmitInlineAsm(StringRef Str, const MDNode *LocMDNode) const {
                         /*NoFinalize*/ true);
   if (Res && !HasDiagHandler)
     report_fatal_error("Error parsing inline asm\n");
-#endif // ANDROID_TARGET_BUILD
 }
 
 
 /// EmitInlineAsm - This method formats and emits the specified machine
 /// instruction that is an inline asm.
 void AsmPrinter::EmitInlineAsm(const MachineInstr *MI) const {
-#ifndef ANDROID_TARGET_BUILD
   assert(MI->isInlineAsm() && "printInlineAsm only works on inline asms");
 
   unsigned NumOperands = MI->getNumOperands();
@@ -369,7 +366,6 @@ void AsmPrinter::EmitInlineAsm(const MachineInstr *MI) const {
   if (OutStreamer.hasRawTextSupport())
     OutStreamer.EmitRawText(Twine("\t")+MAI->getCommentString()+
                             MAI->getInlineAsmEnd());
-#endif // ANDROID_TARGET_BUILD
 }
 
 

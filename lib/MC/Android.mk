@@ -9,6 +9,7 @@ mc_SRC_FILES := \
   MCAsmInfoDarwin.cpp \
   MCAsmStreamer.cpp \
   MCAssembler.cpp \
+  MCAtom.cpp \
   MCCodeEmitter.cpp \
   MCCodeGenInfo.cpp \
   MCContext.cpp \
@@ -19,16 +20,18 @@ mc_SRC_FILES := \
   MCELFStreamer.cpp \
   MCExpr.cpp \
   MCInst.cpp \
-  MCInstPrinter.cpp \
   MCInstrAnalysis.cpp \
+  MCInstPrinter.cpp \
   MCLabel.cpp \
   MCLoggingStreamer.cpp	\
   MCMachObjectTargetWriter.cpp \
   MCMachOStreamer.cpp \
+  MCModule.cpp \
   MCNullStreamer.cpp \
   MCObjectFileInfo.cpp \
   MCObjectStreamer.cpp \
   MCObjectWriter.cpp \
+  MCPureStreamer.cpp \
   MCSection.cpp \
   MCSectionCOFF.cpp	\
   MCSectionELF.cpp \

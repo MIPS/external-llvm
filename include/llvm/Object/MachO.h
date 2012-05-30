@@ -18,6 +18,7 @@
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/MachOObject.h"
 #include "llvm/Support/MachO.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace llvm {
@@ -81,13 +82,14 @@ protected:
   virtual error_code getRelocationSymbol(DataRefImpl Rel,
                                          SymbolRef &Res) const;
   virtual error_code getRelocationType(DataRefImpl Rel,
-                                       uint32_t &Res) const;
+                                       uint64_t &Res) const;
   virtual error_code getRelocationTypeName(DataRefImpl Rel,
                                            SmallVectorImpl<char> &Result) const;
   virtual error_code getRelocationAdditionalInfo(DataRefImpl Rel,
                                                  int64_t &Res) const;
   virtual error_code getRelocationValueString(DataRefImpl Rel,
                                            SmallVectorImpl<char> &Result) const;
+  virtual error_code getRelocationHidden(DataRefImpl Rel, bool &Result) const;
 
 private:
   MachOObject *MachOObj;
@@ -108,6 +110,9 @@ private:
   void getRelocation(DataRefImpl Rel,
                      InMemoryStruct<macho::RelocationEntry> &Res) const;
   std::size_t getSectionIndex(DataRefImpl Sec) const;
+
+  void printRelocationTargetName(InMemoryStruct<macho::RelocationEntry>& RE,
+                                 raw_string_ostream &fmt) const;
 };
 
 }

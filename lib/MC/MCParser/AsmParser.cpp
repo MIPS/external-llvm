@@ -464,6 +464,14 @@ bool AsmParser::Run(bool NoInitialTextSection, bool NoFinalize) {
   HadError = false;
   AsmCond StartingCondState = TheCondState;
 
+  // If we are generating dwarf for assembly source files save the initial text
+  // section and generate a .file directive.
+  if (getContext().getGenDwarfForAssembly()) {
+    getContext().setGenDwarfSection(getStreamer().getCurrentSection());
+    getStreamer().EmitDwarfFileDirective(getContext().nextGenDwarfFileNumber(),
+      StringRef(), SrcMgr.getMemoryBuffer(CurBuffer)->getBufferIdentifier());
+  }
+
   // While we have input, parse each statement.
   while (Lexer.isNot(AsmToken::Eof)) {
     if (!ParseStatement()) continue;
@@ -1211,6 +1219,18 @@ bool AsmParser::ParseStatement() {
     PrintMessage(IDLoc, SourceMgr::DK_Note, OS.str());
   }
 
+  // If we are generating dwarf for assembly source files and the current
+  // section is the initial text section then generate a .loc directive for
+  // the instruction.
+  if (!HadError && getContext().getGenDwarfForAssembly() &&
+      getContext().getGenDwarfSection() == getStreamer().getCurrentSection() ) {
+    getStreamer().EmitDwarfLocDirective(getContext().getGenDwarfFileNumber(),
+                                        SrcMgr.FindLineNumber(IDLoc, CurBuffer),
+                                        0, DWARF2_LINE_DEFAULT_IS_STMT ?
+                                        DWARF2_FLAG_IS_STMT : 0, 0, 0,
+                                        StringRef());
+  }
+
   // If parsing succeeded, match the instruction.
   if (!HadError)
     HadError = getTargetParser().MatchAndEmitInstruction(IDLoc, ParsedOperands,
@@ -1228,7 +1248,8 @@ bool AsmParser::ParseStatement() {
 /// EatToEndOfLine uses the Lexer to eat the characters to the end of the line
 /// since they may not be able to be tokenized to get to the end of line token.
 void AsmParser::EatToEndOfLine() {
- Lexer.LexUntilEndOfLine();
+  if (!Lexer.is(AsmToken::EndOfStatement))
+    Lexer.LexUntilEndOfLine();
  // Eat EOL.
  Lex();
 }
@@ -2340,6 +2361,10 @@ bool GenericAsmParser::ParseDirectiveFile(StringRef, SMLoc DirectiveLoc) {
 
   if (getLexer().isNot(AsmToken::EndOfStatement))
     return TokError("unexpected token in '.file' directive");
+
+  if (getContext().getGenDwarfForAssembly() == true)
+    Error(DirectiveLoc, "input can't have .file dwarf directives when -g is "
+                        "used to generate dwarf debug info for assembly code");
 
   if (FileNumber == -1)
     getStreamer().EmitFileDirective(Filename);

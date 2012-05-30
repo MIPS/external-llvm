@@ -65,7 +65,7 @@ def t2_so_imm_neg_XFORM : SDNodeXForm<imm, [{
 // t2_so_imm - Match a 32-bit immediate operand, which is an
 // 8-bit immediate rotated by an arbitrary number of bits, or an 8-bit
 // immediate splatted into multiple bytes of the word.
-def t2_so_imm_asmoperand : AsmOperandClass { let Name = "T2SOImm"; }
+def t2_so_imm_asmoperand : ImmAsmOperand { let Name = "T2SOImm"; }
 def t2_so_imm : Operand<i32>, ImmLeaf<i32, [{
     return ARM_AM::getT2SOImmVal(Imm) != -1;
   }]> {
@@ -76,10 +76,16 @@ def t2_so_imm : Operand<i32>, ImmLeaf<i32, [{
 
 // t2_so_imm_not - Match an immediate that is a complement
 // of a t2_so_imm.
+// Note: this pattern doesn't require an encoder method and such, as it's
+// only used on aliases (Pat<> and InstAlias<>). The actual encoding
+// is handled by the destination instructions, which use t2_so_imm.
+def t2_so_imm_not_asmoperand : AsmOperandClass { let Name = "T2SOImmNot"; }
 def t2_so_imm_not : Operand<i32>,
                     PatLeaf<(imm), [{
   return ARM_AM::getT2SOImmVal(~((uint32_t)N->getZExtValue())) != -1;
-}], t2_so_imm_not_XFORM>;
+}], t2_so_imm_not_XFORM> {
+  let ParserMatchClass = t2_so_imm_not_asmoperand;
+}
 
 // t2_so_imm_neg - Match an immediate that is a negation of a t2_so_imm.
 def t2_so_imm_neg : Operand<i32>,
@@ -1460,7 +1466,7 @@ def t2STRD_POST : T2Ii8s4post<0, 1, 0, (outs GPR:$wb),
                  "$addr.base = $wb", []>;
 
 // T2Ipl (Preload Data/Instruction) signals the memory system of possible future
-// data/instruction access.  These are for disassembly only.
+// data/instruction access.
 // instr_write is inverted for Thumb mode: (prefetch 3) -> (preload 0),
 // (prefetch 1) -> (preload 2),  (prefetch 2) -> (preload 1).
 multiclass T2Ipl<bits<1> write, bits<1> instr, string opc> {
@@ -1518,6 +1524,10 @@ multiclass T2Ipl<bits<1> write, bits<1> instr, string opc> {
 
     let DecoderMethod = "DecodeT2LoadShift";
   }
+  // FIXME: We should have a separate 'pci' variant here. As-is we represent
+  // it via the i12 variant, which it's related to, but that means we can
+  // represent negative immediates, which aren't legal for anything except
+  // the 'pci' case (Rn == 15).
 }
 
 defm t2PLD  : T2Ipl<0, 0, "pld">,  Requires<[IsThumb2]>;
@@ -1543,8 +1553,7 @@ multiclass thumb2_ld_mult<string asm, InstrItinClass itin,
     let Inst{21}    = 0;        // No writeback
     let Inst{20}    = L_bit;
     let Inst{19-16} = Rn;
-    let Inst{15}    = 0;
-    let Inst{14-0}  = regs{14-0};
+    let Inst{15-0}  = regs;
   }
   def IA_UPD :
     T2XIt<(outs GPR:$wb), (ins GPR:$Rn, pred:$p, reglist:$regs, variable_ops),
@@ -1559,8 +1568,7 @@ multiclass thumb2_ld_mult<string asm, InstrItinClass itin,
     let Inst{21}    = 1;        // Writeback
     let Inst{20}    = L_bit;
     let Inst{19-16} = Rn;
-    let Inst{15}    = 0;
-    let Inst{14-0}  = regs{14-0};
+    let Inst{15-0}  = regs;
   }
   def DB :
     T2XI<(outs), (ins GPR:$Rn, pred:$p, reglist:$regs, variable_ops),
@@ -1575,8 +1583,7 @@ multiclass thumb2_ld_mult<string asm, InstrItinClass itin,
     let Inst{21}    = 0;        // No writeback
     let Inst{20}    = L_bit;
     let Inst{19-16} = Rn;
-    let Inst{15}    = 0;
-    let Inst{14-0}  = regs{14-0};
+    let Inst{15-0}  = regs;
   }
   def DB_UPD :
     T2XIt<(outs GPR:$wb), (ins GPR:$Rn, pred:$p, reglist:$regs, variable_ops),
@@ -1591,8 +1598,7 @@ multiclass thumb2_ld_mult<string asm, InstrItinClass itin,
     let Inst{21}    = 1;        // Writeback
     let Inst{20}    = L_bit;
     let Inst{19-16} = Rn;
-    let Inst{15}    = 0;
-    let Inst{14-0}  = regs{14-0};
+    let Inst{15-0}  = regs;
   }
 }
 
@@ -2891,7 +2897,7 @@ def t2MOVCCi32imm : PseudoInst<(outs rGPR:$dst),
 
 let isMoveImm = 1 in
 def t2MVNCCi : T2OneRegImm<(outs rGPR:$Rd), (ins rGPR:$false, t2_so_imm:$imm),
-                   IIC_iCMOVi, "mvn", ".w\t$Rd, $imm",
+                   IIC_iCMOVi, "mvn", "\t$Rd, $imm",
 [/*(set rGPR:$Rd,(ARMcmov rGPR:$false,t2_so_imm_not:$imm,
                    imm:$cc, CCR:$ccr))*/]>,
                    RegConstraint<"$false = $Rd"> {
@@ -3861,6 +3867,16 @@ def : t2InstAlias<"add${s}${p} $Rd, $Rn, $Rm",
 def : t2InstAlias<"add${s}${p} $Rd, $Rn, $ShiftedRm",
                   (t2ADDrs GPRnopc:$Rd, GPRnopc:$Rn, t2_so_reg:$ShiftedRm,
                            pred:$p, cc_out:$s)>;
+// ... and with the destination and source register combined.
+def : t2InstAlias<"add${s}${p} $Rdn, $imm",
+      (t2ADDri GPRnopc:$Rdn, GPRnopc:$Rdn, t2_so_imm:$imm, pred:$p, cc_out:$s)>;
+def : t2InstAlias<"add${p} $Rdn, $imm",
+           (t2ADDri12 GPRnopc:$Rdn, GPRnopc:$Rdn, imm0_4095:$imm, pred:$p)>;
+def : t2InstAlias<"add${s}${p} $Rdn, $Rm",
+            (t2ADDrr GPRnopc:$Rdn, GPRnopc:$Rdn, rGPR:$Rm, pred:$p, cc_out:$s)>;
+def : t2InstAlias<"add${s}${p} $Rdn, $ShiftedRm",
+                  (t2ADDrs GPRnopc:$Rdn, GPRnopc:$Rdn, t2_so_reg:$ShiftedRm,
+                           pred:$p, cc_out:$s)>;
 
 // Aliases for SUB without the ".w" optional width specifier.
 def : t2InstAlias<"sub${s}${p} $Rd, $Rn, $imm",
@@ -3872,6 +3888,17 @@ def : t2InstAlias<"sub${s}${p} $Rd, $Rn, $Rm",
 def : t2InstAlias<"sub${s}${p} $Rd, $Rn, $ShiftedRm",
                   (t2SUBrs GPRnopc:$Rd, GPRnopc:$Rn, t2_so_reg:$ShiftedRm,
                            pred:$p, cc_out:$s)>;
+// ... and with the destination and source register combined.
+def : t2InstAlias<"sub${s}${p} $Rdn, $imm",
+      (t2SUBri GPRnopc:$Rdn, GPRnopc:$Rdn, t2_so_imm:$imm, pred:$p, cc_out:$s)>;
+def : t2InstAlias<"sub${p} $Rdn, $imm",
+           (t2SUBri12 GPRnopc:$Rdn, GPRnopc:$Rdn, imm0_4095:$imm, pred:$p)>;
+def : t2InstAlias<"sub${s}${p} $Rdn, $Rm",
+            (t2SUBrr GPRnopc:$Rdn, GPRnopc:$Rdn, rGPR:$Rm, pred:$p, cc_out:$s)>;
+def : t2InstAlias<"sub${s}${p} $Rdn, $ShiftedRm",
+                  (t2SUBrs GPRnopc:$Rdn, GPRnopc:$Rdn, t2_so_reg:$ShiftedRm,
+                           pred:$p, cc_out:$s)>;
+
 
 // Alias for compares without the ".w" optional width specifier.
 def : t2InstAlias<"cmn${p} $Rn, $Rm",
@@ -3910,7 +3937,20 @@ def : t2InstAlias<"ldrsb${p} $Rt, $addr",
 def : t2InstAlias<"ldrsh${p} $Rt, $addr",
                   (t2LDRSHs rGPR:$Rt, t2addrmode_so_reg:$addr, pred:$p)>;
 
-// Alias for MVN without the ".w" optional width specifier.
+def : t2InstAlias<"ldr${p} $Rt, $addr",
+                  (t2LDRpci GPR:$Rt, t2ldrlabel:$addr, pred:$p)>;
+def : t2InstAlias<"ldrb${p} $Rt, $addr",
+                  (t2LDRBpci rGPR:$Rt, t2ldrlabel:$addr, pred:$p)>;
+def : t2InstAlias<"ldrh${p} $Rt, $addr",
+                  (t2LDRHpci rGPR:$Rt, t2ldrlabel:$addr, pred:$p)>;
+def : t2InstAlias<"ldrsb${p} $Rt, $addr",
+                  (t2LDRSBpci rGPR:$Rt, t2ldrlabel:$addr, pred:$p)>;
+def : t2InstAlias<"ldrsh${p} $Rt, $addr",
+                  (t2LDRSHpci rGPR:$Rt, t2ldrlabel:$addr, pred:$p)>;
+
+// Alias for MVN with(out) the ".w" optional width specifier.
+def : t2InstAlias<"mvn${s}${p}.w $Rd, $imm",
+           (t2MVNi rGPR:$Rd, t2_so_imm:$imm, pred:$p, cc_out:$s)>;
 def : t2InstAlias<"mvn${s}${p} $Rd, $Rm",
            (t2MVNr rGPR:$Rd, rGPR:$Rm, pred:$p, cc_out:$s)>;
 def : t2InstAlias<"mvn${s}${p} $Rd, $ShiftedRm",
@@ -3930,6 +3970,18 @@ def : t2InstAlias<"push${p}.w $regs", (t2STMDB_UPD SP, pred:$p, reglist:$regs)>;
 def : t2InstAlias<"push${p} $regs", (t2STMDB_UPD SP, pred:$p, reglist:$regs)>;
 def : t2InstAlias<"pop${p}.w $regs", (t2LDMIA_UPD SP, pred:$p, reglist:$regs)>;
 def : t2InstAlias<"pop${p} $regs", (t2LDMIA_UPD SP, pred:$p, reglist:$regs)>;
+
+// STMDB/STMDB_UPD aliases w/ the optional .w suffix
+def : t2InstAlias<"stmdb${p}.w $Rn, $regs",
+                  (t2STMDB GPR:$Rn, pred:$p, reglist:$regs)>;
+def : t2InstAlias<"stmdb${p}.w $Rn!, $regs",
+                  (t2STMDB_UPD GPR:$Rn, pred:$p, reglist:$regs)>;
+
+// LDMDB/LDMDB_UPD aliases w/ the optional .w suffix
+def : t2InstAlias<"ldmdb${p}.w $Rn, $regs",
+                  (t2LDMDB GPR:$Rn, pred:$p, reglist:$regs)>;
+def : t2InstAlias<"ldmdb${p}.w $Rn!, $regs",
+                  (t2LDMDB_UPD GPR:$Rn, pred:$p, reglist:$regs)>;
 
 // Alias for REV/REV16/REVSH without the ".w" optional width specifier.
 def : t2InstAlias<"rev${p} $Rd, $Rm", (t2REV rGPR:$Rd, rGPR:$Rm, pred:$p)>;
@@ -4026,3 +4078,14 @@ def : t2InstAlias<"sxtb16${p} $Rd, $Rm$rot",
                   (t2SXTB16 rGPR:$Rd, rGPR:$Rm, rot_imm:$rot, pred:$p)>;
 def : t2InstAlias<"sxth${p} $Rd, $Rm$rot",
                   (t2SXTH rGPR:$Rd, rGPR:$Rm, rot_imm:$rot, pred:$p)>;
+
+
+// "mov Rd, t2_so_imm_not" can be handled via "mvn" in assembly, just like
+// for isel.
+def : t2InstAlias<"mov${p} $Rd, $imm",
+                  (t2MVNi rGPR:$Rd, t2_so_imm_not:$imm, pred:$p, zero_reg)>;
+
+
+// Wide 'mul' encoding can be specified with only two operands.
+def : t2InstAlias<"mul${p} $Rn, $Rm",
+                  (t2MUL rGPR:$Rn, rGPR:$Rn, rGPR:$Rm, pred:$p)>;

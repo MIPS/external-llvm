@@ -13,11 +13,10 @@
 
 #include "BlackfinMCTargetDesc.h"
 #include "BlackfinMCAsmInfo.h"
-#include "llvm/MC/MCCodeGenInfo.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Target/TargetRegistry.h"
 
 #define GET_INSTRINFO_MC_DESC
 #include "BlackfinGenInstrInfo.inc"
@@ -37,10 +36,20 @@ static MCInstrInfo *createBlackfinMCInstrInfo() {
   return X;
 }
 
+extern "C" void LLVMInitializeBlackfinMCInstrInfo() {
+  TargetRegistry::RegisterMCInstrInfo(TheBlackfinTarget,
+                                      createBlackfinMCInstrInfo);
+}
+
 static MCRegisterInfo *createBlackfinMCRegisterInfo(StringRef TT) {
   MCRegisterInfo *X = new MCRegisterInfo();
   InitBlackfinMCRegisterInfo(X, BF::RETS);
   return X;
+}
+
+extern "C" void LLVMInitializeBlackfinMCRegisterInfo() {
+  TargetRegistry::RegisterMCRegInfo(TheBlackfinTarget,
+                                    createBlackfinMCRegisterInfo);
 }
 
 static MCSubtargetInfo *createBlackfinMCSubtargetInfo(StringRef TT,
@@ -51,31 +60,22 @@ static MCSubtargetInfo *createBlackfinMCSubtargetInfo(StringRef TT,
   return X;
 }
 
-static MCCodeGenInfo *createBlackfinMCCodeGenInfo(StringRef TT, Reloc::Model RM,
-                                                  CodeModel::Model CM) {
+extern "C" void LLVMInitializeBlackfinMCSubtargetInfo() {
+  TargetRegistry::RegisterMCSubtargetInfo(TheBlackfinTarget,
+                                          createBlackfinMCSubtargetInfo);
+}
+
+extern "C" void LLVMInitializeBlackfinMCAsmInfo() {
+  RegisterMCAsmInfo<BlackfinMCAsmInfo> X(TheBlackfinTarget);
+}
+
+MCCodeGenInfo *createBlackfinMCCodeGenInfo(StringRef TT, Reloc::Model RM) {
   MCCodeGenInfo *X = new MCCodeGenInfo();
-  X->InitMCCodeGenInfo(RM, CM);
+  X->InitMCCodeGenInfo(RM);
   return X;
 }
 
-// Force static initialization.
-extern "C" void LLVMInitializeBlackfinTargetMC() {
-  // Register the MC asm info.
-  RegisterMCAsmInfo<BlackfinMCAsmInfo> X(TheBlackfinTarget);
-
-  // Register the MC codegen info.
+extern "C" void LLVMInitializeBlackfinMCCodeGenInfo() {
   TargetRegistry::RegisterMCCodeGenInfo(TheBlackfinTarget,
                                         createBlackfinMCCodeGenInfo);
-
-  // Register the MC instruction info.
-  TargetRegistry::RegisterMCInstrInfo(TheBlackfinTarget,
-                                      createBlackfinMCInstrInfo);
-
-  // Register the MC register info.
-  TargetRegistry::RegisterMCRegInfo(TheBlackfinTarget,
-                                    createBlackfinMCRegisterInfo);
-
-  // Register the MC subtarget info.
-  TargetRegistry::RegisterMCSubtargetInfo(TheBlackfinTarget,
-                                          createBlackfinMCSubtargetInfo);
 }
