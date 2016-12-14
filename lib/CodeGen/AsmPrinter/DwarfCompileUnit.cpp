@@ -194,6 +194,9 @@ DIE *DwarfCompileUnit::getOrCreateGlobalVariableDIE(
   } else if (const ConstantInt *CI =
                  dyn_cast_or_null<ConstantInt>(GV->getVariable())) {
     addConstantValue(*VariableDIE, CI, GTy);
+  } else if (const ConstantFP *CF =
+                 dyn_cast_or_null<ConstantFP>(GV->getVariable())) {
+    addConstantFPValue(*VariableDIE, CF);
   } else if (const ConstantExpr *CE = getMergedGlobalExpr(GV->getVariable())) {
     auto *Ptr = cast<GlobalValue>(CE->getOperand(0));
     if (!Ptr->hasDLLImportStorageClass()) {
