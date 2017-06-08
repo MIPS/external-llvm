@@ -35,6 +35,12 @@ llvm_defaults {
         "-std=c++11",
     ],
 
+    clang_cflags: [
+        // Temporarily suppress the warnings http://b/37867503
+        "-Wno-error=unused-lambda-capture",
+        "-Wno-error=user-defined-warnings",
+    ],
+
     header_libs: ["llvm-headers-no-generated-headers"],
 
     target: {
