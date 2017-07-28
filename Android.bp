@@ -193,9 +193,9 @@ llvm_aarch64_static_libraries = [
     "libLLVMAArch64Disassembler",
 ]
 
-cc_library_shared {
+cc_defaults {
     host_supported: true,
-    name: "libLLVM",
+    name: "libLLVM-defaults",
     defaults: [
         "llvm-defaults",
         "force_build_llvm_components",
@@ -303,6 +303,16 @@ cc_library_shared {
                 llvm_arm_static_libraries,
         },
     },
+}
+
+cc_library_shared {
+    name: "libLLVM",
+    defaults: ["libLLVM-defaults"],
+}
+
+cc_library_shared {
+    name: "libLLVM_android",
+    defaults: ["libLLVM-defaults"],
 }
 
 subdirs = [
