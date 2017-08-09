@@ -1,6 +1,12 @@
 cc_defaults {
     name: "llvm-lib-defaults",
     defaults: ["llvm-defaults"],
+    cflags: [
+        "-W",
+        "-Wall",
+        "-Wno-unused-lambda-capture",
+        "-Wno-unused-parameter",
+    ],
     export_header_lib_headers: ["llvm-headers"],
     target: {
         windows: {
