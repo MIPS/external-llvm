@@ -2,6 +2,10 @@ cc_defaults {
     name: "llvm-defaults",
     defaults: ["llvm-defaults-no-generated-headers"],
     header_libs: ["llvm-headers"],
+    tidy_checks: [
+        "-google-build-*",
+        "-google-global-*",
+    ],
 }
 
 // This module defines all of the defaults used to compiled llvm, except for
@@ -39,6 +43,11 @@ llvm_defaults {
         // Temporarily suppress the warnings http://b/37867503
         "-Wno-error=unused-lambda-capture",
         "-Wno-error=user-defined-warnings",
+    ],
+
+    tidy_checks: [
+        "-google-build-*",
+        "-google-global-*",
     ],
 
     header_libs: ["llvm-headers-no-generated-headers"],
