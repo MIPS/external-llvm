@@ -1,5 +1,6 @@
 cc_defaults {
     name: "llvm-lib-defaults",
+    vendor_available: true,
     defaults: ["llvm-defaults"],
     cflags: [
         "-W",
