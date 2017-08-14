@@ -106,6 +106,7 @@ llvm_defaults {
 
 cc_library_headers {
     name: "llvm-headers-no-generated-headers",
+    vendor_available: true,
     host_supported: true,
     export_include_dirs: ["include"],
     target: {
@@ -126,6 +127,7 @@ cc_library_headers {
 
 cc_library_headers {
     name: "llvm-headers",
+    vendor_available: true,
     host_supported: true,
     header_libs: ["llvm-headers-no-generated-headers"],
     export_header_lib_headers: ["llvm-headers-no-generated-headers"],
