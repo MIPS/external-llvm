@@ -15,7 +15,6 @@ llvm_defaults {
     name: "llvm-defaults-no-generated-headers",
 
     host_supported: true,
-    clang: true,
 
     cflags: [
         "-D_GNU_SOURCE",
