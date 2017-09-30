@@ -21,6 +21,7 @@ cc_library_static {
     cflags: [
         "-W",
         "-Wall",
+        "-Werror",
         "-Wno-unused-lambda-capture",
         "-Wno-unused-parameter",
     ],
@@ -38,6 +39,7 @@ cc_library_static {
     cflags: [
         "-W",
         "-Wall",
+        "-Werror",
         "-Wno-unused-lambda-capture",
         "-Wno-unused-parameter",
     ],
