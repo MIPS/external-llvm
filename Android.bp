@@ -56,6 +56,8 @@ llvm_defaults {
             cflags: [
                 "-finline-functions",
             ],
+        },
+        linux: {
             cppflags: [
                 "-Woverloaded-virtual",
             ],
@@ -79,8 +81,6 @@ llvm_defaults {
             host_ldlibs: ["-luuid"],
         },
         linux_glibc: {
-            cppflags: ["-Woverloaded-virtual"],
-
             // Add on ncurses to have support for terminfo
             host_ldlibs: [
                 "-lncurses",

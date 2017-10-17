@@ -62,7 +62,7 @@ cc_binary_host {
         darwin: {
             ldflags: ["-Wl,-export_dynamic"],
         },
-        linux_glibc: {
+        linux: {
             ldflags: ["-Wl,--export-dynamic"],
         },
     },
