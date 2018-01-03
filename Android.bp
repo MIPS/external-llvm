@@ -24,6 +24,7 @@ llvm_defaults {
         "-fomit-frame-pointer",
         "-Wall",
         "-W",
+        "-Wno-cast-qual",
         "-Wno-sign-compare",
         "-Wno-unused-parameter",
         "-Wno-maybe-uninitialized",
